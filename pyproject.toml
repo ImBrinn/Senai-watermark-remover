@@ -11,6 +11,9 @@ requires-python = ">=3.9"
 dependencies = ["pypdf>=5.0"]
 
 [project.optional-dependencies]
+# Qt 6.8 is a long-term-support release; 6.9+ needs Windows' own ICU
+# library at runtime, which older systems (and Wine) lack.
+gui = ["PySide6-Essentials>=6.8,<6.9"]
 test = ["pytest"]
 
 [project.scripts]
@@ -20,7 +23,10 @@ senai-remover = "senai_remover.cli:main"
 senai-remover-gui = "senai_remover.gui:main"
 
 [tool.setuptools]
-packages = ["senai_remover"]
+packages = ["senai_remover", "senai_remover.gui", "senai_remover.gui.designs"]
+
+[tool.setuptools.package-data]
+"senai_remover.gui" = ["assets/app.png", "assets/app.ico", "assets/fonts/*", "assets/icons/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "senai_remover.__version__" }
