@@ -1,7 +1,7 @@
 """Entry point for ``python -m senai_remover`` and the standalone executable.
 
-With no arguments (or when there is no console, e.g. PDFs dropped onto the
-.exe) the GUI opens; otherwise the command line interface runs.
+With no arguments, with ``--design N``, or when there is no console (e.g. PDFs
+dropped onto the .exe) the GUI opens; otherwise the command line runs.
 """
 
 import sys
@@ -9,7 +9,7 @@ import sys
 if __name__ == "__main__":
     # Absolute imports so this file also works as a PyInstaller entry script.
     args = sys.argv[1:]
-    if not args or sys.stdout is None:
+    if not args or sys.stdout is None or "--design" in args:
         from senai_remover import gui
 
         sys.exit(gui.main(args))
