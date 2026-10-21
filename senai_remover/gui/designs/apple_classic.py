@@ -1,4 +1,4 @@
-"""Prototype 1, Apple Classic: a Mac-style window following Apple's Human
+"""Theme 1, Apple Classic: a Mac-style window following Apple's Human
 Interface Guidelines.
 
 - A menu bar that holds every command (the-menu-bar.md, toolbars.md).
@@ -210,7 +210,9 @@ class _Rows(RowDelegate):
 
 
 class AppleClassicWindow(BaseWindow):
+    ID = "apple-classic"
     NAME = "Apple Classic"
+    DESCRIPTION = "Toolbar, inset list and status bar"
     TITLE_CASE = True
 
     def build(self) -> None:
@@ -240,6 +242,7 @@ class AppleClassicWindow(BaseWindow):
             button = icon_button(icon(name, t["label"], 18, 1.75, t["disabled"]), act.toolTip())
             bind(button, act)
             row.addWidget(button)
+        row.addWidget(self.settings_button(t["label"]))
         row.addStretch(1)
         row.addWidget(QLabel(L.save_to, objectName="saveLabel"))
         row.addSpacing(6)

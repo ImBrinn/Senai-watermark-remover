@@ -5,41 +5,45 @@ Each design only builds its widgets and decides how things look."""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu, QMessageBox, QToolButton
 
 from ..controller import Controller
 from ..model import RunSummary
-from ..theme import Prefs
-from ..widgets import FileListView, Labels
+from ..theme import Prefs, icon
+from ..widgets import FileListView, Labels, bind, icon_button
 
 PDF_FILTER = "PDF files (*.pdf)"
 
 
 class BaseWindow(QMainWindow):
-    NAME = ""  # shown in the View menu, e.g. "Apple Classic"
+    ID = ""  # saved in settings, e.g. "apple-classic"
+    NAME = ""  # shown in Settings and the Theme menu, e.g. "Apple Classic"
+    DESCRIPTION = ""  # one line under the name in Settings
     TITLE_CASE = True
     DEFAULT_SIZE = (760, 560)
     MIN_SIZE = (560, 420)
 
-    def __init__(self, controller: Controller, prefs: Prefs, designs: list[str], index: int,
-                 switch: Callable[[int], None]):
+    def __init__(self, controller: Controller, prefs: Prefs, shell, index: int):
+        """``shell`` is the app's Shell: it owns the saved settings and
+        swaps the window when the theme or appearance changes."""
         super().__init__()
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.controller = controller
         self.prefs = prefs
+        self.shell = shell
         self.labels = Labels(self.TITLE_CASE)
         self.design_index = index
-        self._switch = switch
         self.list_view: Optional[FileListView] = None
+        self.settings_panel = None
         self.setWindowTitle("SenAI Watermark Remover")
         self.resize(*self.DEFAULT_SIZE)
         self.setMinimumSize(*self.MIN_SIZE)
         self.setAcceptDrops(True)
-        self._make_actions(designs)
+        self._make_actions([design.NAME for design in shell.designs])
         self.build()
         assert self.list_view is not None, "a design must create self.list_view"
         self.list_view.customContextMenuRequested.connect(self._context_menu)
@@ -105,13 +109,14 @@ class BaseWindow(QMainWindow):
         self.act_run = action(L.run, self.controller.run, ["Ctrl+Return", "Ctrl+Enter"])
         self.act_show = action(L.show, lambda: self.controller.show_outputs(self.list_view.selected_rows()))
         self.act_open_pdf = action(L.open_pdf, self._open_selected)
+        self.act_settings = action(L.settings, self.open_settings, ["Ctrl+,"], "Settings")
         self.act_exit = action(L.exit, self.close, ["Ctrl+Q"])
         self.act_about = action(L.about, self._about)
 
         self.design_group = QActionGroup(self)
         self.act_designs = []
         for i, name in enumerate(designs):
-            act = action(f"Prototype {i + 1}: {name}", lambda _=False, i=i: self._switch(i), [f"Ctrl+{i + 1}"])
+            act = action(name, lambda _=False, i=i: self.shell.switch(i), [f"Ctrl+{i + 1}"])
             act.setCheckable(True)
             act.setChecked(i == self.design_index)
             self.design_group.addAction(act)
@@ -127,13 +132,42 @@ class BaseWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addActions([self.act_open_pdf, self.act_show])
         file_menu.addSeparator()
+        file_menu.addAction(self.act_settings)
+        file_menu.addSeparator()
         file_menu.addAction(self.act_exit)
         edit_menu = bar.addMenu("&Edit")
         edit_menu.addActions([self.act_remove, self.act_clear])
         view_menu = bar.addMenu("&View")
-        view_menu.addActions(self.act_designs)
+        theme_menu = view_menu.addMenu("&Theme")
+        theme_menu.addActions(self.act_designs)
+        view_menu.addSeparator()
+        view_menu.addAction(self.act_settings)
         help_menu = bar.addMenu("&Help")
         help_menu.addAction(self.act_about)
+
+    def more_menu_items(self, menu: QMenu) -> None:
+        """The Theme submenu and Settings, for designs with a More menu."""
+        themes = menu.addMenu("Theme")
+        themes.addActions(self.act_designs)
+        menu.addAction(self.act_settings)
+
+    def settings_button(self, color: str, size: int = 28) -> "QToolButton":
+        """A gear button that opens Settings."""
+        button = icon_button(icon("settings", color, 18, 1.75), self.act_settings.toolTip(), size)
+        button.setAccessibleName("Settings")
+        bind(button, self.act_settings)
+        return button
+
+    def open_settings(self, animate: bool = True, focus: str = "theme") -> None:
+        from ..settings_panel import SettingsPanel
+
+        if self.settings_panel is None:
+            self.settings_panel = SettingsPanel(self)
+        self.settings_panel.open(animate=animate and self.isVisible(), focus=focus)
+
+    @property
+    def settings_open(self) -> bool:
+        return self.settings_panel is not None and self.settings_panel.is_open
 
     def refresh(self, *_) -> None:
         if self.list_view is None:

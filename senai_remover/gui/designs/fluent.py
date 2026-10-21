@@ -1,4 +1,4 @@
-"""Prototype 4, Windows 11 Fluent: built to feel native on Windows 11, where
+"""Theme 4, Windows 11 Fluent: built to feel native on Windows 11, where
 the app runs, without Apple's rules as a constraint.
 
 - Mica-like base colour with content on cards: 8 px corners, 1 px strokes.
@@ -370,7 +370,9 @@ def _command(icon_name: str, text: str, t: dict) -> QToolButton:
 
 
 class FluentWindow(BaseWindow):
+    ID = "fluent"
     NAME = "Windows 11 Fluent"
+    DESCRIPTION = "Native Windows 11 look"
     TITLE_CASE = False
     DEFAULT_SIZE = (820, 620)
     MIN_SIZE = (600, 480)
@@ -426,14 +428,18 @@ class FluentWindow(BaseWindow):
         more_menu.setFont(font(14, families=TEXT_FONTS))
         more_menu.addActions([self.act_open_pdf, self.act_show])
         more_menu.addSeparator()
-        designs = more_menu.addMenu("Prototype")
-        designs.setFont(font(14, families=TEXT_FONTS))
-        designs.addActions(self.act_designs)
+        self.more_menu_items(more_menu)
         more_menu.addAction(self.act_about)
         more_menu.addSeparator()
         more_menu.addAction(self.act_exit)
         more.setMenu(more_menu)
         more.setPopupMode(QToolButton.InstantPopup)
+        gear = _command("settings", "", t)
+        gear.setToolTip(self.act_settings.toolTip())
+        gear.setAccessibleName("Settings")
+        gear.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        bind(gear, self.act_settings)
+        commands.addWidget(gear)
         commands.addWidget(more)
         page.addLayout(commands)
         page.addSpacing(12)

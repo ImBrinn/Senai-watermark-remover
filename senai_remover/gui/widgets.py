@@ -42,6 +42,7 @@ class Labels:
         self.choose_folder = t("Choose Folder…", "Choose folder…")
         self.choose_files = t("Choose Files…", "Choose files…")
         self.save_to = t("Save To:", "Save to")
+        self.settings = "Settings…"
         self.exit = "Exit"
         self.about = t("About SenAI Watermark Remover", "About SenAI Watermark Remover")
         self.title_case = title_case

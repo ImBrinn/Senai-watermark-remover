@@ -1,0 +1,119 @@
+name: Release
+
+# Builds the Windows app for a version tag and publishes it as a GitHub
+# release, with notes taken from CHANGELOG.md. Runs on every v* tag push,
+# or by hand (Actions → Release → Run workflow) for any tags, or "all" to
+# (re)publish every version. Re-running is safe: an existing release gets
+# its notes and .exe replaced.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tags to publish, separated by spaces, or "all"'
+        required: true
+        default: all
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.list.outputs.tags }}
+      newest: ${{ steps.list.outputs.newest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: list
+        env:
+          WANTED: ${{ github.event_name == 'push' && github.ref_name || inputs.tags }}
+        run: |
+          if [ "$WANTED" = "all" ]; then
+            tags=$(git tag --list 'v*' --sort=version:refname)
+          else
+            tags="$WANTED"
+          fi
+          for tag in $tags; do
+            git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || { echo "::error::No tag named $tag"; exit 1; }
+          done
+          echo "tags=$(printf '%s\n' $tags | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+          echo "newest=$(git tag --list 'v*' --sort=-version:refname | head -n 1)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJson(needs.plan.outputs.tags) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        shell: pwsh
+        run: |
+          if (Test-Path senai_remover/gui/assets) {
+            # v2 and later: the Qt app and its bundled fonts, icons and previews.
+            pip install ".[gui]" pyinstaller
+            pyinstaller --onefile --windowed --name SenAI-Watermark-Remover `
+              --icon senai_remover/gui/assets/app.ico `
+              --add-data "senai_remover/gui/assets:senai_remover/gui/assets" `
+              --paths . senai_remover/__main__.py
+          } else {
+            # v1: the Tkinter window.
+            pip install . pyinstaller
+            pyinstaller --onefile --windowed --name SenAI-Watermark-Remover --paths . senai_remover/__main__.py
+          }
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe-${{ matrix.tag }}
+          path: dist/SenAI-Watermark-Remover.exe
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        tag: ${{ fromJson(needs.plan.outputs.tags) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}  # the current CHANGELOG.md
+      - uses: actions/download-artifact@v4
+        with:
+          name: exe-${{ matrix.tag }}
+          path: dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.tag }}
+          NEWEST: ${{ needs.plan.outputs.newest }}
+        run: |
+          version="${TAG#v}"
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && index($0, "## [") == 1 { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "SenAI Watermark Remover $TAG" > notes.md
+          latest=false
+          [ "$TAG" = "$NEWEST" ] && latest=true
+          title="SenAI Watermark Remover $TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/SenAI-Watermark-Remover.exe --clobber
+            gh release edit "$TAG" --title "$title" --notes-file notes.md --latest="$latest"
+          else
+            gh release create "$TAG" dist/SenAI-Watermark-Remover.exe --verify-tag \
+              --title "$title" --notes-file notes.md --latest="$latest"
+          fi
