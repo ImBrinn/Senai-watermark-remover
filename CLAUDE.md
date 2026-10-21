@@ -104,15 +104,20 @@ Rules the tests enforce or that reviews expect:
 - **Asset name:** always `SenAI-Watermark-Remover.exe`, so
   `/releases/latest/download/SenAI-Watermark-Remover.exe` keeps working.
 
-Claude cloud sessions can push branches but **not tags** (the remote hangs up),
-so let the workflow create them.
+Claude cloud sessions can push branches but **not tags** (HTTP 403), so let
+the workflow create them.
 
-## Known situation (Oct 2026)
+## GitHub notes
 
-- **Actions:** GitHub Actions runs in this private repo end in
-  `startup_failure` with zero jobs. That's an account billing or Actions
-  setting the owner has to fix, not the workflow, which passes `actionlint`.
-  Until then, nothing builds in CI and releases aren't published automatically.
+- **Public repo:** the repo is public, so Actions on GitHub-hosted runners
+  costs nothing. v1.0.0, v2.0.0 and v2.1.0 were published by the Release
+  workflow on 21 Oct 2026.
+- **Starting the release:** Claude can start it with the GitHub MCP tool
+  `actions_run_trigger`: `run_workflow`, `release.yml`, ref `main`, inputs
+  `{"tags": "all"}` or `{"tags": "vX.Y.Z"}`.
 - **No release API:** Claude's GitHub tools can't create releases or upload
-  assets. Releases come from the Release workflow, or the owner uploads them by
-  hand.
+  assets themselves, so releases always come from the workflow.
+- **Runs that never start:** if a run fails before any job starts, or a job
+  has no runner, read the job's annotations. They give the reason, for example
+  "account is locked due to a billing issue", which only the owner can fix:
+  `https://api.github.com/repos/ImBrinn/Senai-watermark-remover/check-runs/<job id>/annotations`.
