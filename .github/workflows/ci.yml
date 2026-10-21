@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[test]"
+      - run: pytest -q
+
+  windows-exe:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install . pyinstaller
+      - name: Build
+        run: pyinstaller --onefile --windowed --name SenAI-Watermark-Remover --paths . senai_remover/__main__.py
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          Copy-Item tests/fixtures/senai_sample.pdf sample.pdf
+          python -m senai_remover sample.pdf
+          if (-not (Test-Path sample_clean.pdf)) { throw "CLI produced no output" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SenAI-Watermark-Remover-windows
+          path: dist/SenAI-Watermark-Remover.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} dist/SenAI-Watermark-Remover.exe --title ${{ github.ref_name }} --generate-notes

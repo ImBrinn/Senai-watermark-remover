@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "senai-watermark-remover"
+dynamic = ["version"]
+description = "Remove the SenAI branding (title and senai.uk footer) from PDFs"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["pypdf>=5.0"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+senai-remover = "senai_remover.cli:main"
+
+[project.gui-scripts]
+senai-remover-gui = "senai_remover.gui:main"
+
+[tool.setuptools]
+packages = ["senai_remover"]
+
+[tool.setuptools.dynamic]
+version = { attr = "senai_remover.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
