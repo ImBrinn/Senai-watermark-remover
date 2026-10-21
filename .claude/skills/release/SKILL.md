@@ -14,12 +14,15 @@ description: Cut a new version of SenAI Watermark Remover (version bump, CHANGEL
    because the workflow extracts the notes by that line.
 3. **Check:** run the tests and pyflakes, regenerate screenshots if anything
    visual changed (`/screenshots`), and open a PR.
-4. **Tag:** after the PR is merged, tag the merge commit and push:
-   `git fetch origin main && git tag -a vX.Y.Z origin/main -m "SenAI Watermark Remover vX.Y.Z" && git push origin vX.Y.Z`
-5. **Publish:** the tag push runs `.github/workflows/release.yml`, which builds
-   the `.exe` for the tag and creates the release, with notes from the
-   changelog and marked Latest if it's the newest tag. To rebuild or backfill,
-   go to Actions → Release → Run workflow and enter a list of tags, or `all`.
+4. **Publish:** after the PR is merged, run Actions → Release → Run workflow
+   with `all`, or with `vX.Y.Z`.
+   - **Tags:** the workflow tags any untagged version at the first commit on
+     `main` that has it (the merge), so nobody has to push tags. Claude cloud sessions can't push tags
+     anyway, because the remote hangs up.
+   - **Release:** it builds the `.exe` and publishes the release with notes
+     from the changelog, marking the newest version as Latest.
+   - **From a computer with git:** a person can also push a `vX.Y.Z` tag
+     there, which runs the same workflow.
 
 Claude's GitHub tools can't create releases or upload assets, so check the
 result with `list_releases` / `get_release_by_tag`. If Actions can't start

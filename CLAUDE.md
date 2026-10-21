@@ -91,12 +91,21 @@ Rules the tests enforce or that reviews expect:
 1. Bump `senai_remover/__init__.py` `__version__`.
 2. Add a `## [X.Y.Z] - date` section at the top of `CHANGELOG.md`. The Release
    workflow uses that section as the release notes.
-3. Merge, then tag the merge commit `vX.Y.Z` and push the tag.
+3. Merge the PR, then run Actions → Release → Run workflow (`all`, or the
+   new tag).
 
-`.github/workflows/release.yml` builds the `.exe` for the tag and publishes the
-release. Use Actions → Release → Run workflow with `all` to rebuild every
-release. The asset is always named `SenAI-Watermark-Remover.exe`, so
-`/releases/latest/download/SenAI-Watermark-Remover.exe` keeps working.
+`.github/workflows/release.yml` builds and publishes the release:
+- **Tags:** it tags any version that has no tag yet, at the first commit on
+  `main` that has that version (the release PR's merge).
+- **Notes and Latest:** it takes the release notes from the changelog and
+  marks the newest version as Latest.
+- **Re-running:** safe; it replaces the notes and the `.exe` on existing
+  releases.
+- **Asset name:** always `SenAI-Watermark-Remover.exe`, so
+  `/releases/latest/download/SenAI-Watermark-Remover.exe` keeps working.
+
+Claude cloud sessions can push branches but **not tags** (the remote hangs up),
+so let the workflow create them.
 
 ## Known situation (Oct 2026)
 
