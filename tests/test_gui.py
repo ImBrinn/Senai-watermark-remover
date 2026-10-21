@@ -1,5 +1,5 @@
-"""Drives every design prototype offscreen: adding files, drag and drop,
-cleaning, shortcuts, switching designs, and colour contrast."""
+"""Drives every theme offscreen: adding files, drag and drop, cleaning,
+shortcuts, switching themes, the settings bar, and colour contrast."""
 
 import os
 import shutil
@@ -13,12 +13,14 @@ pytest.importorskip("PySide6")
 from pypdf import PdfReader  # noqa: E402
 from PySide6.QtCore import QEventLoop, QMimeData, QPoint, QPointF, Qt, QTimer, QUrl  # noqa: E402
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeySequence  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QToolButton  # noqa: E402
 
 from senai_remover.gui.app import Shell, configure  # noqa: E402
+from senai_remover.gui.controller import Controller  # noqa: E402
+from senai_remover.gui.settings import Settings  # noqa: E402
 from senai_remover.gui.designs import DESIGNS  # noqa: E402
 from senai_remover.gui.model import Status  # noqa: E402
-from senai_remover.gui.theme import Prefs, contrast  # noqa: E402
+from senai_remover.gui.theme import Prefs, contrast, mix  # noqa: E402
 
 from conftest import FIXTURE  # noqa: E402
 
@@ -31,8 +33,9 @@ def app():
 
 
 @pytest.fixture
-def shell(app, monkeypatch):
+def shell(app, monkeypatch, tmp_path):
     monkeypatch.setenv("SENAI_APPEARANCE", "light")
+    monkeypatch.setenv("SENAI_SETTINGS_FILE", str(tmp_path / "settings.ini"))
     shells = []
 
     def make(index):
@@ -195,3 +198,122 @@ def test_every_design_builds_in_both_appearances(shell, monkeypatch, pdfs, index
     window.notify("A message", "warning")
     settle()
     assert not window.grab().isNull()
+
+
+# Settings bar ------------------------------------------------------------------
+
+
+def test_theme_choice_is_saved(shell, monkeypatch, tmp_path):
+    s = shell(0)
+    assert s.window.act_settings.shortcuts() == [QKeySequence("Ctrl+,")]
+    s.window.act_designs[2].trigger()
+    assert isinstance(s.window, DESIGNS[2])
+    assert Settings().theme == DESIGNS[2].ID
+    again = Shell(QApplication.instance())  # a later launch starts on the saved theme
+    assert again.index == 2
+
+
+def test_settings_bar_switches_theme_and_stays_open(shell, pdfs):
+    s = shell(0)
+    s.window.add_paths(pdfs)
+    s.window.act_settings.trigger()
+    panel = s.window.settings_panel
+    assert panel.is_open and len(panel.cards.buttons()) == len(DESIGNS)
+    assert panel.checked(panel.cards) is panel.cards.button(0)
+    panel.cards.button(3).click()
+    settle()
+    assert isinstance(s.window, DESIGNS[3])
+    new_panel = s.window.settings_panel
+    assert s.window.settings_open and new_panel.checked(new_panel.cards) is new_panel.cards.button(3)
+    assert QApplication.focusWidget() is new_panel.cards.button(3)  # focus follows the choice
+    assert s.window.list_view.model().rowCount() == 2
+    s.window.settings_panel.close_panel()
+    assert not s.window.settings_open
+
+
+def test_appearance_setting(shell, monkeypatch):
+    monkeypatch.delenv("SENAI_APPEARANCE")
+    s = shell(1)
+    s.window.open_settings(animate=False)
+    dark = [b for b in s.window.settings_panel.appearance.buttons() if b.text() == "Dark"][0]
+    dark.click()
+    settle()
+    assert Settings().appearance == "dark"
+    assert s.window.prefs.dark and s.window.settings_open
+    light = [b for b in s.window.settings_panel.appearance.buttons() if b.text() == "Light"][0]
+    light.click()
+    settle()
+    assert Settings().appearance == "light" and not s.window.prefs.dark
+
+
+def test_escape_closes_settings(shell):
+    from PySide6.QtTest import QTest
+
+    s = shell(0)
+    s.window.open_settings(animate=False)
+    s.window.activateWindow()
+    card = s.window.settings_panel.checked(s.window.settings_panel.cards)
+    card.setFocus()
+    settle()
+    QTest.keyClick(card, Qt.Key_Escape)
+    settle()
+    assert not s.window.settings_open
+
+
+def test_settings_locked_while_cleaning(shell, monkeypatch):
+    s = shell(0)
+    s.window.open_settings(animate=False)
+    panel = s.window.settings_panel
+    monkeypatch.setattr(Controller, "running", property(lambda self: True))
+    panel._sync_enabled()
+    assert not any(b.isEnabled() for b in panel.cards.buttons() + panel.appearance.buttons())
+    assert not panel.busy_note.isHidden()
+
+
+@pytest.mark.parametrize("index", range(len(DESIGNS)), ids=DESIGN_IDS)
+def test_every_theme_shows_a_settings_button(shell, index):
+    window = shell(index).window
+    gears = [b for b in window.findChildren(QToolButton) if b.accessibleName() == "Settings" and b.isVisible()]
+    assert len(gears) == 1
+    gears[0].click()
+    assert window.settings_open
+
+
+@pytest.mark.parametrize("cls", DESIGNS, ids=DESIGN_IDS)
+@pytest.mark.parametrize("prefs", [Prefs(), Prefs(dark=True), Prefs(high_contrast=True),
+                                   Prefs(dark=True, high_contrast=True)],
+                         ids=["light", "dark", "light-hc", "dark-hc"])
+def test_settings_bar_contrast(cls, prefs):
+    t = sys.modules[cls.__module__].tokens(prefs)
+    card_hover = mix(t["label"], t["surface"], 0.06)
+    pairs = [("label", t["label"], t["surface"]), ("secondary", t["secondary"], t["surface"]),
+             ("label on card", t["label"], card_hover), ("secondary on card", t["secondary"], card_hover),
+             ("on_accent", t["on_accent"], t["accent"])]
+    failures = [f"{name}: {contrast(fg, bg):.2f}" for name, fg, bg in pairs if contrast(fg, bg) < 4.5]
+    assert not failures, failures
+
+
+def test_keyboard_stays_in_settings_bar(shell):
+    from PySide6.QtTest import QTest
+
+    s = shell(0)
+    s.window.open_settings(animate=False)
+    s.window.activateWindow()
+    panel = s.window.settings_panel
+    chain = panel.focus_chain()
+    assert len(chain) == 1 + len(DESIGNS) + 3  # close, every card, three appearance buttons
+    chain[0].setFocus()
+    settle()
+    seen = []
+    for _ in range(len(chain) + 1):
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key_Tab)
+        seen.append(QApplication.focusWidget())
+    assert seen[:-1] == chain[1:] + chain[:1] and seen[-1] is chain[1]  # wraps, never leaves
+    QTest.keyClick(QApplication.focusWidget(), Qt.Key_Backtab)
+    assert QApplication.focusWidget() is chain[0]
+
+    fluent_card = panel.cards.button(3)
+    fluent_card.setFocus()
+    QTest.keyClick(fluent_card, Qt.Key_Space)
+    settle()
+    assert isinstance(s.window, DESIGNS[3]) and s.window.settings_open

@@ -1,4 +1,4 @@
-"""Prototype 2, Apple Liquid Glass: Apple's current design language,
+"""Theme 2, Apple Liquid Glass: Apple's current design language,
 following the Human Interface Guidelines and the skill's Liquid Glass guide.
 
 - Two layers. Content (file cards, the drop well) is opaque; the controls
@@ -477,7 +477,9 @@ class DropWell(QWidget):
 
 
 class AppleGlassWindow(BaseWindow):
+    ID = "apple-glass"
     NAME = "Apple Liquid Glass"
+    DESCRIPTION = "Floating glass controls"
     TITLE_CASE = True
     DEFAULT_SIZE = (800, 580)
 
@@ -533,11 +535,11 @@ class AppleGlassWindow(BaseWindow):
         more_menu.addSeparator()
         more_menu.addActions([self.act_remove, self.act_clear])
         more_menu.addSeparator()
-        designs = more_menu.addMenu("Prototype")
-        designs.addActions(self.act_designs)
+        self.more_menu_items(more_menu)
         more_menu.addAction(self.act_about)
         more.setMenu(more_menu)
         more.setPopupMode(QToolButton.InstantPopup)
+        tools.row.addWidget(self.settings_button(t["label"], 32))
         tools.row.addWidget(more)
         bar_row.addWidget(tools)
         bar_row.addStretch(1)

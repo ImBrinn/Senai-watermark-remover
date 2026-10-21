@@ -1,4 +1,5 @@
-"""The four design prototypes, in the order of their Ctrl+1 to Ctrl+4 shortcuts."""
+"""The four themes, in the order of their Ctrl+1 to Ctrl+4 shortcuts and the
+Settings cards."""
 
 from .apple_classic import AppleClassicWindow
 from .apple_glass import AppleGlassWindow

@@ -1,4 +1,4 @@
-"""Prototype 3, Exercise Book: a free-form design drawn from where these
+"""Theme 3, Exercise Book: a free-form design drawn from where these
 PDFs come from, SenAI maths homework and the squared exercise books it
 gets copied into.
 
@@ -495,7 +495,9 @@ class Footer(QWidget):
 
 
 class ExerciseBookWindow(BaseWindow):
+    ID = "exercise-book"
     NAME = "Exercise Book"
+    DESCRIPTION = "Maths paper and teacher's marks"
     TITLE_CASE = False
     DEFAULT_SIZE = (820, 600)
 
@@ -554,13 +556,13 @@ class ExerciseBookWindow(BaseWindow):
         menu.addSeparator()
         menu.addActions([self.act_remove, self.act_clear])
         menu.addSeparator()
-        designs = menu.addMenu("Prototype")
-        designs.addActions(self.act_designs)
+        self.more_menu_items(menu)
         menu.addAction(self.act_about)
         menu.addSeparator()
         menu.addAction(self.act_exit)
         more.setMenu(menu)
         more.setPopupMode(QToolButton.InstantPopup)
+        row.addWidget(self.settings_button(t["label"], 30))
         row.addWidget(more)
         row.addStretch(1)
         row.addWidget(QLabel(L.save_to, objectName="saveLabel"))

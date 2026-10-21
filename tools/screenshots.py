@@ -1,10 +1,14 @@
-"""Renders every design prototype in each state, for design review.
+"""Renders every theme, offscreen, for design review and documentation.
 
-    python tools/screenshots.py OUTPUT_DIR [design numbers...]
+    python tools/screenshots.py OUT_DIR [theme numbers...]   # review set
+    python tools/screenshots.py --previews                   # Settings card images
+    python tools/screenshots.py --docs                       # README screenshots
 
-Uses Qt's offscreen platform, so it needs no display. States: empty,
-files added, after cleaning (with a cleaned, an unchanged and a failed
-file, second row selected), in light and dark.
+The review set is each theme empty, with files added, and after cleaning
+(a cleaned, an unchanged and a failed file, second row selected), in light
+and dark. --previews writes senai_remover/gui/assets/previews/ and --docs
+writes docs/screenshots/. A throwaway settings file is used, so your own
+saved theme is never touched.
 """
 
 import logging
@@ -16,17 +20,21 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("SENAI_REDUCE_MOTION", "1")  # capture finished states, not mid-animation
+os.environ["SENAI_SETTINGS_FILE"] = str(Path(tempfile.mkdtemp()) / "settings.ini")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from PySide6.QtCore import QEventLoop, QItemSelectionModel, QTimer  # noqa: E402
+from PySide6.QtCore import QEventLoop, QItemSelectionModel, Qt, QTimer  # noqa: E402
+from PySide6.QtGui import QImage  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from senai_remover.core import clean_pdf  # noqa: E402
 from senai_remover.gui.app import Shell, configure  # noqa: E402
 from senai_remover.gui.designs import DESIGNS  # noqa: E402
+from senai_remover.gui.settings_panel import CARD_WIDTH, PREVIEW_HEIGHT  # noqa: E402
 
 FIXTURE = ROOT / "tests" / "fixtures" / "senai_sample.pdf"
+SIZE = (880, 600)
 
 
 def sample_files(folder: Path) -> list[Path]:
@@ -42,18 +50,21 @@ def sample_files(folder: Path) -> list[Path]:
     return [a, hw / "Angles and triangles.pdf", plain, broken]
 
 
-def settle(app, ms=60):
+def settle(ms=60):
     loop = QEventLoop()
     QTimer.singleShot(ms, loop.quit)
     loop.exec()
 
 
-def shoot(app, index: int, appearance: str, state: str, out: Path, files) -> None:
+def render(app, index: int, appearance: str, state: str, files, settings_open=False) -> QImage:
+    """The window for theme ``index`` in ``state`` (empty, listed or done)."""
     os.environ["SENAI_APPEARANCE"] = appearance
+    for stale in files[0].parent.glob("*_clean*.pdf"):
+        stale.unlink()
     shell = Shell(app)
     shell.show(index)
     w = shell.window
-    w.resize(880, 600)
+    w.resize(*SIZE)
     if state != "empty":
         w.add_paths(files)
     if state == "done":
@@ -65,30 +76,54 @@ def shoot(app, index: int, appearance: str, state: str, out: Path, files) -> Non
         view.setFocus()
         view.selectionModel().select(view.model().index(1, 0),
                                      QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+    if settings_open:
+        w.open_settings(animate=False)
     w.activateWindow()
-    settle(app, 150)
-    w.grab().save(str(out))
+    settle(150)
+    image = w.grab().toImage()
     w.close()
     shell.deleteLater()
-    settle(app)
+    settle()
+    return image
 
 
 def main() -> None:
-    out = Path(sys.argv[1])
-    out.mkdir(parents=True, exist_ok=True)
-    which = [int(a) - 1 for a in sys.argv[2:]] or range(len(DESIGNS))
     logging.getLogger("pypdf").setLevel(logging.ERROR)  # the broken sample is meant to fail
     app = configure(QApplication.instance() or QApplication([]))
+    args = sys.argv[1:]
     with tempfile.TemporaryDirectory() as tmp:
         files = sample_files(Path(tmp))
-        for index in which:
+        if args == ["--previews"]:
+            out = ROOT / "senai_remover" / "gui" / "assets" / "previews"
+            out.mkdir(exist_ok=True)
+            for index, design in enumerate(DESIGNS):
+                for appearance in ("light", "dark"):
+                    image = render(app, index, appearance, "done", files)
+                    small = image.scaled(CARD_WIDTH * 2, (PREVIEW_HEIGHT - 8) * 2,
+                                         Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                    small.save(str(out / f"{design.ID}-{appearance}.png"), "PNG")
+                    print("wrote", out / f"{design.ID}-{appearance}.png")
+        elif args == ["--docs"]:
+            out = ROOT / "docs" / "screenshots"
+            out.mkdir(parents=True, exist_ok=True)
+            for index, design in enumerate(DESIGNS):
+                for appearance in ("light", "dark"):
+                    render(app, index, appearance, "done", files).save(str(out / f"{design.ID}-{appearance}.png"))
+                    print("wrote", out / f"{design.ID}-{appearance}.png")
             for appearance in ("light", "dark"):
-                for state in ("empty", "listed", "done"):
-                    for stale in Path(tmp, "Homework", "Week 7").glob("*_clean*.pdf"):
-                        stale.unlink()
-                    name = f"p{index + 1}-{appearance}-{state}.png"
-                    shoot(app, index, appearance, state, out / name, files)
-                    print("wrote", out / name)
+                render(app, 0, appearance, "listed", files, settings_open=True).save(
+                    str(out / f"settings-{appearance}.png"))
+                print("wrote", out / f"settings-{appearance}.png")
+        else:
+            out = Path(args[0])
+            out.mkdir(parents=True, exist_ok=True)
+            which = [int(a) - 1 for a in args[1:]] or range(len(DESIGNS))
+            for index in which:
+                for appearance in ("light", "dark"):
+                    for state in ("empty", "listed", "done"):
+                        name = f"p{index + 1}-{appearance}-{state}.png"
+                        render(app, index, appearance, state, files).save(str(out / name))
+                        print("wrote", out / name)
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ senai-remover-gui = "senai_remover.gui:main"
 packages = ["senai_remover", "senai_remover.gui", "senai_remover.gui.designs"]
 
 [tool.setuptools.package-data]
-"senai_remover.gui" = ["assets/app.png", "assets/app.ico", "assets/fonts/*", "assets/icons/*"]
+"senai_remover.gui" = ["assets/app.png", "assets/app.ico", "assets/fonts/*", "assets/icons/*", "assets/previews/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "senai_remover.__version__" }
