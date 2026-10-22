@@ -1,6 +1,6 @@
 """Choices that are remembered between launches: the theme, the
-appearance (match the system, or always light or dark) and what cleaned
-copies are called.
+appearance (match the system, or always light or dark), the title put on
+page 1 and what cleaned copies are called.
 
 Stored with QSettings as an INI file, on Windows in
 %APPDATA%\\SenAI\\Watermark Remover.ini. SENAI_SETTINGS_FILE points it
@@ -14,7 +14,7 @@ from typing import Optional
 
 from PySide6.QtCore import QSettings
 
-from ..core import DEFAULT_NAME, name_problem
+from ..core import DEFAULT_NAME, DEFAULT_TITLE, name_problem, title_problem
 
 APPEARANCES = ("system", "light", "dark")
 
@@ -46,6 +46,21 @@ class Settings:
         if value not in APPEARANCES:
             raise ValueError(f"appearance must be one of {APPEARANCES}")
         self._store.setValue("appearance", value)
+        self._store.sync()
+
+    @property
+    def title(self) -> str:
+        """The title put where SenAI's was on page 1; "" for none."""
+        value = self._store.value("title", DEFAULT_TITLE)
+        value = "" if value is None else str(value)
+        return value if title_problem(value) is None else DEFAULT_TITLE
+
+    @title.setter
+    def title(self, title: str) -> None:
+        problem = title_problem(title)
+        if problem is not None:
+            raise ValueError(problem)
+        self._store.setValue("title", title)
         self._store.sync()
 
     @property

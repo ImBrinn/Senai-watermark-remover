@@ -305,8 +305,9 @@ def test_keyboard_stays_in_settings_bar(shell):
     s.window.activateWindow()
     panel = s.window.settings_panel
     chain = panel.focus_chain()
-    # close, every card, three appearance buttons, the name field (Reset only shows once it's changed)
-    assert len(chain) == 1 + len(DESIGNS) + 3 + 1
+    # close, every card, three appearance buttons, the title and name fields
+    # (their Reset buttons only show once they're changed)
+    assert len(chain) == 1 + len(DESIGNS) + 3 + 2
     chain[0].setFocus()
     settle()
     seen = []
@@ -359,6 +360,58 @@ def test_output_name_setting(shell, pdfs):
     panel.name_reset.click()
     assert panel.name_field.text() == "{name}-clean" and Settings().output_name == "{name}-clean"
     assert panel.name_error.isHidden() and panel.name_reset.isHidden()
+
+
+def test_title_setting(shell, pdfs):
+    from PySide6.QtTest import QTest
+
+    s = shell(0)
+    window = s.window
+    window.open_settings(animate=False)
+    panel = window.settings_panel
+    assert panel.title_field.text() == "Brinns autocompleter"
+    assert panel.title_reset.isHidden() and panel.title_error.isHidden()
+    assert panel.title_note.text() == "Replaces \u201cSenAI Maths\u201d at the top of page 1."
+
+    panel.title_field.clear()
+    QTest.keyClicks(panel.title_field, "Week 7 answers")
+    assert Settings().title == "Week 7 answers" and s.controller.title == "Week 7 answers"
+    assert not panel.title_reset.isHidden()
+    assert panel.title_reset in panel.focus_chain()
+
+    # An arrow the title fonts don't have (keyClicks only types ASCII).
+    panel.title_field.setText("Week 7 answers \u2192")
+    panel.title_field.textEdited.emit(panel.title_field.text())
+    assert not panel.title_error.isHidden() and panel.title_note.isHidden()
+    assert panel.title_error.text().startswith("The title can't use \u2192.")
+    assert panel.title_field.property("error") is True
+    assert Settings().title == "Week 7 answers"  # the last good title is kept
+
+    window.add_paths(pdfs[:1])
+    run_and_wait(s.controller)
+    assert text_of(s.controller.jobs[0].output).lstrip().startswith("week 7 answers")
+
+    panel.title_field.selectAll()
+    QTest.keyClick(panel.title_field, Qt.Key_Backspace)
+    assert Settings().title == "" and s.controller.title == ""
+    assert panel.title_note.text() == "No title: \u201cSenAI Maths\u201d is just removed."
+    run_and_wait(s.controller)
+    text = text_of(s.controller.jobs[0].output)
+    assert "week 7" not in text and "brinns" not in text and "senai" not in text
+
+    panel.title_reset.click()
+    assert panel.title_field.text() == "Brinns autocompleter" and Settings().title == "Brinns autocompleter"
+    assert panel.title_reset.isHidden()
+
+
+def test_saved_title_is_used_at_launch(shell):
+    Settings().title = ""
+    s = shell(1)
+    assert s.controller.title == ""
+    s.window.open_settings(animate=False)
+    assert s.window.settings_panel.title_field.text() == ""
+    with pytest.raises(ValueError):
+        Settings().title = "x" * 51
 
 
 def test_saved_output_name_is_used_at_launch(shell, tmp_path):

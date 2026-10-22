@@ -15,7 +15,7 @@ friendly.
 
 ```bash
 pip install -e ".[gui,test]" pyflakes        # the SessionStart hook does this in cloud sessions
-QT_QPA_PLATFORM=offscreen python3 -m pytest -q   # ~112 tests, ~8 s
+QT_QPA_PLATFORM=offscreen python3 -m pytest -q   # ~117 tests, ~10 s
 python3 -m pyflakes senai_remover tests tools    # the linter; keep it clean
 python3 tools/screenshots.py OUT_DIR [1-4]       # every theme × light/dark × empty/listed/done
 python3 tools/screenshots.py --previews          # Settings card images → senai_remover/gui/assets/previews/
@@ -57,8 +57,8 @@ and dark. Regenerate `--previews` and `--docs` when a theme's look changes.
     outlives windows.
   - `app.py`: `Shell` rebuilds the window when the theme or appearance changes,
     keeping the controller.
-  - `settings.py` / `settings_panel.py`: the saved theme, appearance and
-    output name (an INI via QSettings; `SENAI_SETTINGS_FILE` overrides it),
+  - `settings.py` / `settings_panel.py`: the saved theme, appearance,
+    title and output name (an INI via QSettings; `SENAI_SETTINGS_FILE` overrides it),
     and the slide-in settings bar. Theme wording that mentions the output
     name goes through `BaseWindow.naming()` so it follows the setting.
   - `theme.py`: fonts, Lucide icons, the WCAG contrast maths, and Windows

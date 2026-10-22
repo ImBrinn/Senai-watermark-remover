@@ -60,15 +60,16 @@ class _Worker(QObject):
     finished_job = Signal(int)
     done = Signal()
 
-    def __init__(self, plan: list[tuple[int, FileJob, Path]]):
+    def __init__(self, plan: list[tuple[int, FileJob, Path]], title: str):
         super().__init__()
         self.plan = plan
+        self.title = title
 
     @Slot()
     def run(self) -> None:
         for row, job, target in self.plan:
             self.started_job.emit(row)
-            run_job(job, target)
+            run_job(job, target, self.title)
             self.finished_job.emit(row)
         self.done.emit()
 
@@ -148,6 +149,14 @@ class Controller(QObject):
     def name_template(self) -> str:
         return self.session.name_template
 
+    def set_title(self, title: str) -> None:
+        """Put ``title`` where SenAI's was on page 1 ("" for none)."""
+        self.session.title = title
+
+    @property
+    def title(self) -> str:
+        return self.session.title
+
     def example_name(self, original: str = "name") -> str:
         """What a file called ``original`` would be saved as, e.g. "name-clean.pdf"."""
         return output_name(f"{original}.pdf", self.session.name_template)
@@ -165,7 +174,7 @@ class Controller(QObject):
         self.last_summary = None
 
         self._thread = QThread(self)
-        self._worker = _Worker(plan)
+        self._worker = _Worker(plan, self.session.title)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.started_job.connect(self._row_changed)

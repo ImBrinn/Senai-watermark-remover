@@ -54,6 +54,15 @@ def test_bad_name_is_refused(tmp_path, capsys):
     assert "Put {name} where the original file name should go" in capsys.readouterr().err
 
 
+def test_bad_title_is_refused(tmp_path, capsys):
+    source = tmp_path / "homework.pdf"
+    shutil.copy(FIXTURE, source)
+    with pytest.raises(SystemExit):
+        main([str(source), "--title", "x" * 51])
+    assert "That title is too long" in capsys.readouterr().err
+    assert not (tmp_path / "homework-clean.pdf").exists()
+
+
 def test_output_dir_keeps_names(tmp_path):
     source = tmp_path / "homework.pdf"
     shutil.copy(FIXTURE, source)

@@ -30,6 +30,7 @@ class Shell(QObject):
         self.settings = settings or Settings()
         self.controller = Controller(self)
         self.controller.set_name_template(self.settings.output_name)
+        self.controller.set_title(self.settings.title)
         self.window = None
         self.index = self.saved_index()
         app.styleHints().colorSchemeChanged.connect(self._scheme_changed)
@@ -84,6 +85,11 @@ class Shell(QObject):
         """Save what cleaned copies are called; the window updates its wording."""
         self.settings.output_name = template
         self.controller.set_name_template(template)
+
+    def set_title(self, title: str) -> None:
+        """Save the title put on page 1 ("" for none)."""
+        self.settings.title = title
+        self.controller.set_title(title)
 
     def _settings_open(self) -> bool:
         return self.window is not None and self.window.settings_open
