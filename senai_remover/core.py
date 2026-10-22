@@ -6,6 +6,10 @@ Each text object (BT ... ET) on a page is decoded to Unicode through its
 font's ToUnicode map, matched against the branding patterns, and the
 text-showing operators that draw the match are removed. Everything else in
 the content stream (answers, diagrams, page numbers) is left untouched.
+
+The title is replaced rather than just removed: the new one ("Brinns
+autocompleter" unless told otherwise) is drawn where the old one was, at the
+same size and weight. Then repair.py fixes SenAI's typesetting faults.
 """
 
 from __future__ import annotations
@@ -25,7 +29,22 @@ from pypdf.generic import (
     NumberObject,
 )
 
+from .pdftext import Glyph, Run, _FontDecoder, draw, encode, glyphs, page_fonts, standard_font
+from .repair import repair_page
+
+__all__ = ["_FontDecoder"]  # re-exported for the tests
+
 PathLike = Union[str, Path]
+
+DEFAULT_TITLE = "Brinns autocompleter"
+# The title on page 1, which gets replaced; other branding is just removed.
+TITLE_PATTERN = re.compile(r"\bsen\s?ai\s+maths?\b", re.IGNORECASE)
+TITLE_MARK = NameObject("/BrinnsTitle")  # a no-op marker for where the title goes
+
+# Cleaned copies are called this, with {name} standing for the original name.
+DEFAULT_NAME = "{name}-clean"
+# Characters Windows doesn't allow in file names.
+BAD_NAME_CHARS = set('\\/:*?"<>|')
 
 # Matched case-insensitively against decoded text, so it doesn't matter how
 # the generator splits glyphs or which fonts it embeds. The domain comes first
@@ -49,6 +68,11 @@ class CleanResult:
     pages: int = 0
     # (page number, text) for every piece of branding removed.
     removed: list[tuple[int, str]] = field(default_factory=list)
+    # (page number, what) for each typesetting fault fixed: a symbol such as
+    # "°" drawn in place of an empty box, or "spaces" for a sentence respaced.
+    repaired: list[tuple[int, str]] = field(default_factory=list)
+    # The title drawn in place of SenAI's, or None if there wasn't one.
+    title: Optional[str] = None
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -67,11 +91,15 @@ def clean_pdf(
     source: PathLike,
     output: PathLike,
     patterns: Sequence[str] = DEFAULT_PATTERNS,
+    title: Optional[str] = DEFAULT_TITLE,
+    repair: bool = True,
 ) -> CleanResult:
     """Write a copy of ``source`` to ``output`` with the branding removed.
 
-    ``output`` may be the same path as ``source``; the input is read fully
-    into memory before anything is written.
+    SenAI's title is replaced by ``title`` (pass None or "" to leave it off),
+    and with ``repair`` its typesetting faults are fixed too. ``output`` may
+    be the same path as ``source``; the input is read fully into memory
+    before anything is written.
     """
     source, output = Path(source), Path(output)
     regex = compile_patterns(patterns)
@@ -82,52 +110,223 @@ def clean_pdf(
     writer = PdfWriter(clone_from=reader)
     result = CleanResult(source=source, output=output, pages=len(writer.pages))
     decoders: dict[object, _FontDecoder] = {}
+    fonts_seen: dict = {}
+    standard: dict = {}
+    library: Optional[list] = None
 
     for number, page in enumerate(writer.pages, start=1):
         content = page.get_contents()
         if content is not None:
             fonts = _page_fonts(page)
-            ops, removed, warnings = _strip_operations(content.operations, fonts, decoders, regex)
+            names = _FontNames(page, writer, standard)
+            ops = list(content.operations)
+            new_title = _title_run(ops, fonts, fonts_seen, title) if number == 1 and title else None
+            if new_title is not None:
+                # Mark where the old title was, so the new one takes its place.
+                ops.insert(new_title[1].end + 1, ([TITLE_MARK], b"MP"))
+            ops, removed, warnings = _strip_operations(ops, fonts, decoders, regex)
             result.removed += [(number, text) for text in removed]
             result.warnings += [f"page {number}: {w}" for w in warnings]
-            if removed:
+            # Only put a title in if the old one really came out.
+            replaced = new_title is not None and any(TITLE_PATTERN.search(t) for t in removed)
+            if replaced:
+                result.title = title
+            ops = _place_title(ops, new_title if replaced else None, names)
+            fixes: list[str] = []
+            if repair:
+                if library is None:
+                    library = _font_library(writer, fonts_seen)
+                ops, fixes = repair_page(ops, fonts, fonts_seen, library, names.add, names.name)
+                result.repaired += [(number, fix) for fix in fixes]
+            if removed or fixes:
                 content.operations = ops
                 page.replace_contents(content)
                 page.compress_content_streams()
         result.removed += [(number, text) for text in _strip_links(page, regex)]
 
     result.removed += [(0, text) for text in _strip_metadata(writer, regex)]
+    _set_title(writer, source)
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "wb") as fh:
         writer.write(fh)
     return result
 
 
+def output_name(source: PathLike, template: str = DEFAULT_NAME) -> str:
+    """The cleaned copy's file name: ``template`` with {name} replaced, plus ".pdf"."""
+    source = Path(source)
+    return template.replace("{name}", source.stem).strip() + (source.suffix or ".pdf")
+
+
+def name_problem(template: str) -> Optional[str]:
+    """Why ``template`` can't be used to name cleaned copies, in plain words, or None."""
+    if not template.strip():
+        return "Type a name for the cleaned copies, using {name} for the original name."
+    if "{name}" not in template:
+        return "Put {name} where the original file name should go."
+    bad = sorted({c for c in template if c in BAD_NAME_CHARS})
+    if bad:
+        return "File names can't contain " + " ".join(bad)
+    if any(ord(c) < 32 for c in template):
+        return "File names can't contain control characters."
+    if template.strip().endswith("."):
+        return "File names can't end with a full stop."
+    if len(template) > 120:
+        return "That name is too long."
+    return None
+
+
+def is_output_name(stem: str, template: str = DEFAULT_NAME) -> bool:
+    """Whether a file called ``stem`` looks like an earlier cleaned copy."""
+    if stem.endswith("_clean"):  # what versions before 2.1.1 called them
+        return True
+    template = template.strip()
+    if template == "{name}":
+        return False
+    if "{name}" not in template:
+        return stem == template
+    before, _, after = template.partition("{name}")
+    return re.fullmatch(re.escape(before) + ".+" + re.escape(after), stem) is not None
+
+
 def default_output_path(
-    source: PathLike, output_dir: Optional[PathLike] = None, suffix: Optional[str] = None
+    source: PathLike, output_dir: Optional[PathLike] = None, suffix: Optional[str] = None,
+    template: Optional[str] = None,
 ) -> Path:
     """Where the cleaned copy of ``source`` goes.
 
-    Next to the original as ``name_clean.pdf`` by default, or under the same
-    name inside ``output_dir`` when one is given.
+    Next to the original as ``name-clean.pdf`` by default, or under the same
+    name inside ``output_dir`` when one is given. ``suffix`` (added after the
+    name) or ``template`` ({name} for the original name) changes the name.
     """
     source = Path(source)
-    if suffix is None:
-        suffix = "" if output_dir else "_clean"
+    if template is None:
+        if suffix is None:
+            template = "{name}" if output_dir else DEFAULT_NAME
+        else:
+            template = "{name}" + suffix
     folder = Path(output_dir) if output_dir else source.parent
-    return folder / f"{source.stem}{suffix}{source.suffix or '.pdf'}"
+    return folder / output_name(source, template)
 
 
-def _page_fonts(page: DictionaryObject) -> DictionaryObject:
+def _title_run(ops, fonts, cache, title: str) -> Optional[tuple[Run, Glyph]]:
+    """The new title, drawn where SenAI's title starts, in the same size and
+    style, and the old title's first glyph."""
+    found = [g for g in glyphs(ops, fonts, cache) if g.visible and g.upright]
+    text, owners = "", []
+    for i, g in enumerate(found):
+        if i and (abs(g.y - found[i - 1].y) > 0.5 * g.size or g.x < found[i - 1].x):
+            text += "\n"
+            owners.append(None)
+        text += g.text
+        owners += [g] * len(g.text)
+    match = TITLE_PATTERN.search(text)
+    if match is None:
+        return None
+    first = owners[match.start()]
+    serif = any(w in first.font.name.lower() for w in ("serif", "times", "roman")) \
+        and "sans" not in first.font.name.lower()
+    face = ("Times" if serif else "Helvetica") + ("-Bold" if first.font.bold else "")
+    face = {"Times": "Times-Roman"}.get(face, face)
+    data = encode(face, title)
+    if data is None or first.end < 0:
+        return None
+    return Run(face, first.size, first.x, first.y, data, first.fill), first
+
+
+def _place_title(ops, new_title: Optional[tuple[Run, Glyph]], names: "_FontNames") -> list:
+    """``ops`` with the title mark replaced by the new title, or just taken out."""
+    out = []
+    for operands, op in ops:
+        if op == b"MP" and operands and operands[0] == TITLE_MARK:
+            if new_title is not None:
+                run, old = new_title
+                out += draw([run], old.ctm, names.name)
+        else:
+            out.append((operands, op))
+    return out
+
+
+class _FontNames:
+    """Resource names for the fonts new text is drawn in, added to the page as needed."""
+
+    def __init__(self, page, writer: PdfWriter, standard: dict):
+        self.page, self.writer, self.standard = page, writer, standard
+
+    def name(self, font: str) -> str:
+        """A page font's name as it is; a standard font ("Times-Roman") gets added."""
+        if font.startswith("/"):
+            return font
+        return self.add(standard_font(self.writer, self.standard, font))
+
+    def add(self, ref: IndirectObject) -> str:
+        return _add_font(self.page, ref)
+
+
+def _font_library(writer: PdfWriter, cache: dict) -> list:
+    """(reference, Font) for every font used anywhere in the document, once each."""
+    seen, out = set(), []
+    for page in writer.pages:
+        fonts = _page_fonts(page)
+        for name in fonts:
+            ref = fonts.raw_get(name)
+            if not isinstance(ref, IndirectObject) or ref.idnum in seen:
+                continue
+            seen.add(ref.idnum)
+            font = page_fonts(DictionaryObject({NameObject(name): ref}), cache).get(str(name))
+            if font is not None:
+                out.append((ref, font))
+    return out
+
+
+def _add_font(page, ref: IndirectObject) -> str:
+    """The page's resource name for the font ``ref``, adding it if need be."""
+    fonts = _writable_fonts(page)
+    for name, value in fonts.items():
+        if isinstance(value, IndirectObject) and value.idnum == ref.idnum:
+            return str(name)
+    n = 1
+    while f"/SR{n}" in fonts:
+        n += 1
+    fonts[NameObject(f"/SR{n}")] = ref
+    return f"/SR{n}"
+
+
+def _writable_fonts(page) -> DictionaryObject:
+    """The page's own /Font resource dictionary, created if need be."""
+    if "/Resources" not in page:
+        inherited = _page_resources(page)
+        page[NameObject("/Resources")] = DictionaryObject(inherited) if inherited else DictionaryObject()
+    resources = page["/Resources"].get_object()
+    if "/Font" not in resources:
+        resources[NameObject("/Font")] = DictionaryObject()
+    return resources["/Font"].get_object()
+
+
+def _page_resources(page) -> Optional[DictionaryObject]:
     # /Resources may be inherited from an ancestor /Pages node.
     node = page
     while node is not None:
         if "/Resources" in node:
-            resources = node["/Resources"].get_object()
-            return resources.get("/Font", DictionaryObject()).get_object()
+            return node["/Resources"].get_object()
         parent = node.get("/Parent")
         node = parent.get_object() if parent is not None else None
-    return DictionaryObject()
+    return None
+
+
+def _set_title(writer: PdfWriter, source: Path) -> None:
+    """Give the document a proper title: SenAI's is "about:blank"."""
+    info = writer.metadata or {}
+    current = str(info.get("/Title", "") or "").strip()
+    if not current or current.lower() in ("about:blank", "untitled") or "://" in current:
+        writer.add_metadata({"/Title": source.stem})
+
+
+def _page_fonts(page: DictionaryObject) -> DictionaryObject:
+    resources = _page_resources(page)
+    if resources is None:
+        return DictionaryObject()
+    return resources.get("/Font", DictionaryObject()).get_object()
 
 
 def _strip_operations(ops, fonts, decoders, regex):
@@ -269,86 +468,6 @@ def _decoder_for(fonts, name, cache):
     if key not in cache:
         cache[key] = _FontDecoder(ref.get_object())
     return cache[key]
-
-
-class _FontDecoder:
-    """Maps the bytes of a PDF string to Unicode via the font's ToUnicode CMap."""
-
-    def __init__(self, font: DictionaryObject):
-        self.map: dict[int, str] = {}
-        # (byte length, low, high) code ranges from the CMap's codespace.
-        self.codespace: list[tuple[int, int, int]] = []
-        to_unicode = font.get("/ToUnicode")
-        if to_unicode is not None:
-            try:
-                self._parse_cmap(to_unicode.get_object().get_data().decode("latin-1"))
-            except Exception:
-                self.map.clear()
-        if not self.codespace:
-            width = 2 if font.get("/Subtype") == "/Type0" else 1
-            self.codespace = [(width, 0, 256**width - 1)]
-
-    def decode(self, data: bytes) -> str:
-        out, i = [], 0
-        while i < len(data):
-            width = self._code_width(data, i)
-            code = int.from_bytes(data[i:i + width], "big")
-            out.append(self.map.get(code, chr(code) if width == 1 and not self.map else "�"))
-            i += width
-        return "".join(out)
-
-    def _code_width(self, data: bytes, i: int) -> int:
-        for width, low, high in self.codespace:
-            if i + width <= len(data) and low <= int.from_bytes(data[i:i + width], "big") <= high:
-                return width
-        return self.codespace[0][0]
-
-    def _parse_cmap(self, cmap: str) -> None:
-        for section in _sections(cmap, "codespacerange"):
-            hexes = re.findall(r"<([0-9A-Fa-f\s]*)>", section)
-            for low, high in zip(hexes[::2], hexes[1::2]):
-                low, high = _hex(low), _hex(high)
-                self.codespace.append((len(low), int.from_bytes(low, "big"), int.from_bytes(high, "big")))
-        self.codespace.sort()
-
-        for section in _sections(cmap, "bfchar"):
-            hexes = re.findall(r"<([0-9A-Fa-f\s]*)>", section)
-            for src, dst in zip(hexes[::2], hexes[1::2]):
-                self.map[int.from_bytes(_hex(src), "big")] = _utf16(_hex(dst))
-
-        for section in _sections(cmap, "bfrange"):
-            tokens = re.findall(r"<([0-9A-Fa-f\s]*)>|(\[)|(\])", section)
-            i = 0
-            while i + 2 < len(tokens):
-                low = int.from_bytes(_hex(tokens[i][0]), "big")
-                high = int.from_bytes(_hex(tokens[i + 1][0]), "big")
-                if tokens[i + 2][1]:  # <low> <high> [<dst> <dst> ...]
-                    j = i + 3
-                    while j < len(tokens) and not tokens[j][2]:
-                        self.map[low + (j - i - 3)] = _utf16(_hex(tokens[j][0]))
-                        j += 1
-                    i = j + 1
-                else:  # <low> <high> <dst>: dst's last byte increments
-                    dst = _hex(tokens[i + 2][0])
-                    start = int.from_bytes(dst, "big")
-                    size = len(dst) or 2
-                    for offset in range(min(high - low, 0xFFFF) + 1):
-                        value = (start + offset) % 256**size
-                        self.map[low + offset] = _utf16(value.to_bytes(size, "big"))
-                    i += 3
-
-
-def _sections(cmap: str, name: str) -> list[str]:
-    return re.findall(rf"begin{name}(.*?)end{name}", cmap, re.DOTALL)
-
-
-def _hex(text: str) -> bytes:
-    text = re.sub(r"\s", "", text)
-    return bytes.fromhex(text + "0" * (len(text) % 2))
-
-
-def _utf16(data: bytes) -> str:
-    return data.decode("utf-16-be", errors="replace")
 
 
 def _strip_links(page: DictionaryObject, regex) -> list[str]:

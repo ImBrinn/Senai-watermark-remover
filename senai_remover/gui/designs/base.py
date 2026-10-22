@@ -39,6 +39,7 @@ class BaseWindow(QMainWindow):
         self.design_index = index
         self.list_view: Optional[FileListView] = None
         self.settings_panel = None
+        self._naming: list = []  # (label, text) that mention what copies are called
         self.setWindowTitle("SenAI Watermark Remover")
         self.resize(*self.DEFAULT_SIZE)
         self.setMinimumSize(*self.MIN_SIZE)
@@ -57,6 +58,7 @@ class BaseWindow(QMainWindow):
         controller.progress.connect(self.on_progress)
         controller.finished.connect(self.on_finished)
         controller.output_changed.connect(self.refresh)
+        controller.name_changed.connect(self._update_naming)
         self.refresh()
         if controller.last_summary is not None:  # e.g. after switching designs
             self.on_finished(controller.last_summary)
@@ -65,6 +67,17 @@ class BaseWindow(QMainWindow):
 
     def build(self) -> None:
         raise NotImplementedError
+
+    def naming(self, label, text: str):
+        """Keep ``label`` reading ``text``, with {example} replaced by what
+        cleaned copies are called (``name-clean.pdf`` unless changed)."""
+        self._naming.append((label, text))
+        label.setText(text.replace("{example}", self.controller.example_name()))
+        return label
+
+    def _update_naming(self) -> None:
+        for label, text in self._naming:
+            label.setText(text.replace("{example}", self.controller.example_name()))
 
     def update_view(self) -> None:
         """Called after anything changes; show the right page and counts."""
@@ -269,8 +282,10 @@ class BaseWindow(QMainWindow):
     def _about(self) -> None:
         QMessageBox.about(
             self, self.labels.about,
-            "Removes the SenAI title and the senai.uk footer from PDFs.\n\n"
-            "Cleaned copies are saved as name_clean.pdf; originals are never changed.\n\n"
+            "Replaces the SenAI title with \u201cBrinns autocompleter\u201d, removes the senai.uk "
+            "footer, and fixes SenAI's missing symbols and spaces.\n\n"
+            f"Cleaned copies are saved as {self.controller.example_name()}; "
+            "originals are never changed.\n\n"
             "Fonts: Inter (SIL Open Font License). Icons: Lucide (ISC License).",
         )
 

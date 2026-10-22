@@ -1,7 +1,7 @@
 """The settings bar: slides in from the right of any theme, with the four
-themes as preview cards and the appearance choice. Picking a theme
-restyles the window straight away and keeps the bar open, so people can
-compare themes; the file list and results carry over."""
+themes as preview cards, the appearance choice and the name for cleaned
+copies. Picking a theme restyles the window straight away and keeps the bar
+open, so people can compare themes; the file list and results carry over."""
 
 from __future__ import annotations
 
@@ -17,12 +17,14 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
+from ..core import DEFAULT_NAME, name_problem
 from .theme import ASSETS, icon, mix, pixmap
 from .widgets import font, icon_button
 
@@ -229,6 +231,38 @@ class SettingsPanel(QFrame):
         note = QLabel("Match system follows Windows' light or dark setting.", objectName="settingsNote")
         note.setWordWrap(True)
         content.addWidget(note)
+
+        content.addSpacing(18)
+        content.addWidget(QLabel(title("Cleaned Copies", "Cleaned copies"), objectName="settingsSection"))
+        content.addSpacing(10)
+        name_row = QHBoxLayout()
+        name_row.setSpacing(6)
+        self.name_field = QLineEdit(shell.settings.output_name, objectName="nameField")
+        self.name_field.setAccessibleName("Name for cleaned copies")
+        self.name_field.setPlaceholderText(DEFAULT_NAME)
+        self.name_field.setClearButtonEnabled(False)
+        self.name_field.textEdited.connect(self._name_edited)
+        name_row.addWidget(self.name_field, 1)
+        self.name_reset = QPushButton("Reset", objectName="nameReset")
+        self.name_reset.setCursor(Qt.PointingHandCursor)
+        self.name_reset.setAccessibleName(f"Reset the name to {DEFAULT_NAME}")
+        self.name_reset.setToolTip(f"Go back to {DEFAULT_NAME}")
+        self.name_reset.clicked.connect(self._reset_name)
+        name_row.addWidget(self.name_reset)
+        content.addLayout(name_row)
+        content.addSpacing(8)
+        self.name_example = QLabel(objectName="settingsNote")
+        self.name_example.setWordWrap(True)
+        content.addWidget(self.name_example)
+        self.name_error = QLabel(objectName="nameError")
+        self.name_error.setWordWrap(True)
+        content.addWidget(self.name_error)
+        name_note = QLabel("{name} is the original file's name. The original is never changed.",
+                           objectName="settingsNote")
+        name_note.setWordWrap(True)
+        content.addSpacing(4)
+        content.addWidget(name_note)
+        self._show_name(self.name_field.text())
         content.addStretch(1)
         saved = QLabel("Your choices are saved for next time.", objectName="settingsNote")
         saved.setWordWrap(True)
@@ -291,7 +325,7 @@ class SettingsPanel(QFrame):
 
     def _sync_enabled(self, *_) -> None:
         running = self.window_.controller.running
-        for button in self.cards.buttons() + self.appearance.buttons():
+        for button in self.cards.buttons() + self.appearance.buttons() + [self.name_field, self.name_reset]:
             button.setEnabled(not running)
         self.busy_note.setVisible(running)
 
@@ -307,11 +341,41 @@ class SettingsPanel(QFrame):
         else:
             self.window_.shell.set_appearance(mode)
 
+    def _name_edited(self, text: str) -> None:
+        if name_problem(text) is None:
+            self.window_.shell.set_output_name(text)
+        self._show_name(text)
+
+    def _reset_name(self) -> None:
+        self.name_field.setText(DEFAULT_NAME)
+        self._name_edited(DEFAULT_NAME)
+        self.name_field.setFocus(Qt.OtherFocusReason)
+
+    def _show_name(self, text: str) -> None:
+        """The example (or what's wrong) under the name field."""
+        problem = name_problem(text)
+        controller = self.window_.controller
+        self.name_field.setProperty("error", problem is not None)
+        self.name_field.style().unpolish(self.name_field)
+        self.name_field.style().polish(self.name_field)
+        if problem is None:
+            example = controller.example_name("Algebra homework")
+            self.name_example.setText(f"For example: {example}")
+            self.name_field.setAccessibleDescription(f"For example, {example}")
+        else:
+            self.name_field.setAccessibleDescription(
+                f"{problem} Cleaned copies are still called {controller.example_name()}.")
+        self.name_example.setVisible(problem is None)
+        self.name_error.setText(problem or "")
+        self.name_error.setVisible(problem is not None)
+        self.name_reset.setVisible(text != DEFAULT_NAME)
+
     # Keyboard: Tab and Shift+Tab cycle through the bar and never leave it
     # for the dimmed window behind.
 
     def focus_chain(self) -> list:
-        chain = [self.close_button, *self.cards.buttons(), *self.appearance.buttons()]
+        chain = [self.close_button, *self.cards.buttons(), *self.appearance.buttons(),
+                 self.name_field, self.name_reset]
         return [w for w in chain if w.isEnabled() and w.isVisibleTo(self)]
 
     def focusNextPrevChild(self, next: bool) -> bool:
@@ -345,6 +409,20 @@ def _stylesheet(t: dict) -> str:
     QPushButton#segment:checked {{ background: {t['accent']}; color: {t['on_accent']}; font-weight: 600; }}
     QPushButton#segment:focus {{ border-color: {mix(t['accent'], t['label'], 0.6)}; }}
     QPushButton#segment:disabled {{ color: {t['disabled']}; }}
+    QLineEdit#nameField {{ background: {mix(t['label'], t['surface'], 0.04)}; color: {t['label']};
+                           border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 9px;
+                           font-family: Inter; font-size: 13px; selection-background-color: {t['accent']};
+                           selection-color: {t['on_accent']}; }}
+    QLineEdit#nameField:focus {{ border: 2px solid {t['accent']}; padding: 5px 8px; }}
+    QLineEdit#nameField[error="true"] {{ border: 2px solid {t['danger']}; padding: 5px 8px; }}
+    QLineEdit#nameField:disabled {{ color: {t['disabled']}; }}
+    QPushButton#nameReset {{ background: transparent; color: {t['accent_text']}; border: 2px solid transparent;
+                             border-radius: 6px; padding: 5px 8px; font-family: Inter; font-size: 13px;
+                             font-weight: 600; }}
+    QPushButton#nameReset:hover {{ background: {mix(t['label'], t['surface'], 0.08)}; }}
+    QPushButton#nameReset:focus {{ border-color: {t['accent']}; }}
+    QPushButton#nameReset:disabled {{ color: {t['disabled']}; }}
+    #nameError {{ color: {t['danger']}; font-size: 12px; }}
     QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
     QScrollBar::handle:vertical {{ background: {mix(t['label'], t['surface'], 0.25)}; border-radius: 3px; min-height: 30px; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}

@@ -52,7 +52,7 @@ sha256sum dist/SenAI-Watermark-Remover.exe       # about 38 MB
    - `xdotool key ctrl+Return` to clean
    - `ctrl+1`…`ctrl+4` to switch theme and `ctrl+comma` to open Settings
    - after each step, `import -window root shot.png`, then Read the PNG
-4. Check that `*_clean.pdf` files appeared, and that the rows and summary read
+4. Check that `*-clean.pdf` files appeared, and that the rows and summary read
    "Cleaned".
 5. Stop everything with `WINEPREFIX=$S/prefix wineserver -k`. Never use
    `pkill -f SenAI...`, because it matches and kills your own shell.

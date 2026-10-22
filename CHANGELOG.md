@@ -3,6 +3,23 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] - 2026-10-22
+
+### Added
+- **Your own title.** The “SenAI Maths” title on page 1 becomes **Brinns autocompleter**, in the same place, size and style. It's the only text added. On the command line, `--title` changes it, or `--title ""` leaves it off.
+- **Typesetting repairs.** SenAI's PDFs often have:
+  - empty boxes where symbols should be. These now become proper degree signs (180°), multiplication dots (2 · 3) and ⇒ arrows.
+  - sentences printed as maths italic with no spaces (“Anisoscelestrianglehastwoequalsides.”). These are set again with their spaces, in the page's own font.
+
+  A line the app can't read with confidence is left as it was. `--no-repair` turns repairs off.
+- **Name for cleaned copies** in Settings, with `{name}` standing for the original name. An example updates as you type, and names Windows wouldn't allow are explained. `--name` does the same on the command line.
+- Each file's result counts the fixes too, for example “Cleaned · 10 removed · 55 fixed”.
+- The PDF's document title is the file's name instead of “about:blank”.
+
+### Changed
+- Cleaned copies are called `name-clean.pdf` by default, instead of `name_clean.pdf`. Copies named the old way are still skipped when a folder is added.
+- The README has a before-and-after picture, and covers the title, the repairs and the new setting.
+
 ## [2.1.0] - 2026-10-21
 
 ### Added
@@ -42,6 +59,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Command line** (`senai-remover`) for files and folders, with `-o`, `--in-place`, `--suffix` and `--pattern`.
 - A single-file **Windows `.exe`**.
 
+[2.1.1]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.1.1
 [2.1.0]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.1.0
 [2.0.0]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.0.0
 [1.0.0]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v1.0.0

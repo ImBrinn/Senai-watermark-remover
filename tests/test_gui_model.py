@@ -27,7 +27,7 @@ def pdfs(tmp_path):
     folder = tmp_path / "homework"
     folder.mkdir()
     paths = []
-    for name in ("a.pdf", "b.PDF", "a_clean.pdf"):
+    for name in ("a.pdf", "b.PDF", "a-clean.pdf"):
         shutil.copy(FIXTURE, folder / name)
         paths.append(folder / name)
     (folder / "notes.txt").write_text("not a pdf")
@@ -38,7 +38,7 @@ def test_add_files_folders_and_skips(pdfs, tmp_path):
     folder, (a, b, earlier) = pdfs
     session = Session()
 
-    result = session.add([folder])  # folder scan skips earlier _clean output
+    result = session.add([folder])  # folder scan skips earlier cleaned copies
     assert (result.added, result.duplicates, result.ignored) == (2, 0, 0)
     result = session.add([a, folder / "notes.txt", tmp_path / "missing.pdf"])
     assert (result.added, result.duplicates, result.ignored) == (0, 1, 2)
@@ -64,22 +64,32 @@ def test_plan_never_overwrites_originals_or_each_other(tmp_path):
         folder.mkdir()
     for folder in (one, two):
         shutil.copy(FIXTURE, folder / "hw.pdf")
-    shutil.copy(FIXTURE, out / "hw_clean.pdf")  # a source sitting in the output folder
+    shutil.copy(FIXTURE, out / "hw-clean.pdf")  # a source sitting in the output folder
     session = Session()
-    session.add([one / "hw.pdf", two / "hw.pdf", out / "hw_clean.pdf"])
+    session.add([one / "hw.pdf", two / "hw.pdf", out / "hw-clean.pdf"])
 
-    assert [t.name for _, t in session.plan()] == ["hw_clean.pdf", "hw_clean.pdf", "hw_clean_clean.pdf"]
+    assert [t.name for _, t in session.plan()] == ["hw-clean.pdf", "hw-clean.pdf", "hw-clean-clean.pdf"]
     session.output_dir = out
     targets = [t for _, t in session.plan()]
-    assert [t.name for t in targets] == ["hw_clean (2).pdf", "hw_clean (3).pdf", "hw_clean_clean.pdf"]
+    assert [t.name for t in targets] == ["hw-clean (2).pdf", "hw-clean (3).pdf", "hw-clean-clean.pdf"]
     assert all(t.parent == out for t in targets)
+
+
+def test_plan_uses_the_name_template(tmp_path):
+    shutil.copy(FIXTURE, tmp_path / "hw.pdf")
+    session = Session()
+    session.add([tmp_path / "hw.pdf"])
+    session.name_template = "Brinn - {name}"
+    assert [t.name for _, t in session.plan()] == ["Brinn - hw.pdf"]
+    session.name_template = "{name}"  # would be the original's own name
+    assert [t.name for _, t in session.plan()] == ["hw (2).pdf"]
 
 
 def test_run_job_outcomes(tmp_path):
     good = tmp_path / "good.pdf"
     shutil.copy(FIXTURE, good)
     job = FileJob(good)
-    run_job(job, tmp_path / "good_clean.pdf")
+    run_job(job, tmp_path / "good-clean.pdf")
     assert job.status is Status.CLEANED and job.removed == 4 and job.output.exists()
     assert job.status_text() == ("Cleaned", "4 removed")
 
@@ -91,7 +101,7 @@ def test_run_job_outcomes(tmp_path):
     broken = tmp_path / "broken.pdf"
     broken.write_bytes(b"not really a pdf")
     bad = FileJob(broken)
-    run_job(bad, tmp_path / "broken_clean.pdf")
+    run_job(bad, tmp_path / "broken-clean.pdf")
     assert bad.status is Status.FAILED and bad.output is None
     assert bad.message == "This file isn't a readable PDF."
     assert "PdfStreamError" in bad.detail
@@ -103,7 +113,7 @@ def test_run_job_outcomes(tmp_path):
 
 
 @pytest.mark.parametrize("exc, expected", [
-    (PermissionError(errno.EACCES, "denied", "OUT"), "Couldn't save out_clean.pdf. If it's open in a PDF viewer"),
+    (PermissionError(errno.EACCES, "denied", "OUT"), "Couldn't save out-clean.pdf. If it's open in a PDF viewer"),
     (PermissionError(errno.EACCES, "denied", "SRC"), "Couldn't open this file. If it's open in another app"),
     (FileNotFoundError(errno.ENOENT, "gone", "SRC"), "This file has been moved or deleted."),
     (FileNotFoundError(errno.ENOENT, "gone", "OUT"), "Couldn't save to that folder."),
@@ -114,7 +124,7 @@ def test_run_job_outcomes(tmp_path):
     (KeyError("/Root"), "Couldn't clean this file."),
 ])
 def test_friendly_errors(tmp_path, exc, expected):
-    source, target = tmp_path / "in.pdf", tmp_path / "out_clean.pdf"
+    source, target = tmp_path / "in.pdf", tmp_path / "out-clean.pdf"
     if getattr(exc, "filename", None) == "OUT":
         exc.filename = str(target)
     elif getattr(exc, "filename", None) == "SRC":

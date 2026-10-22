@@ -1,20 +1,27 @@
 # SenAI Watermark Remover
 
-Removes the SenAI branding (the "SenAI Maths" title on page 1 and the
-`senai.uk` footer on every page) from SenAI Maths PDFs. A Windows desktop app
-(Qt, four themes) plus a command line. Users are students on Windows who run
-the single-file `.exe`; keep wording plain and friendly.
+Cleans SenAI Maths PDFs:
+- replaces the "SenAI Maths" title on page 1 with "Brinns autocompleter",
+  which is the only text it adds;
+- removes the `senai.uk` footer on every page;
+- fixes SenAI's typesetting faults (empty boxes for missing symbols, and
+  sentences set with no spaces).
+
+A Windows desktop app (Qt, four themes) plus a command line. Users are
+students on Windows who run the single-file `.exe`; keep wording plain and
+friendly.
 
 ## Commands
 
 ```bash
 pip install -e ".[gui,test]" pyflakes        # the SessionStart hook does this in cloud sessions
-QT_QPA_PLATFORM=offscreen python3 -m pytest -q   # ~95 tests, ~6 s
+QT_QPA_PLATFORM=offscreen python3 -m pytest -q   # ~112 tests, ~8 s
 python3 -m pyflakes senai_remover tests tools    # the linter; keep it clean
 python3 tools/screenshots.py OUT_DIR [1-4]       # every theme × light/dark × empty/listed/done
 python3 tools/screenshots.py --previews          # Settings card images → senai_remover/gui/assets/previews/
 python3 tools/screenshots.py --docs              # README images → docs/screenshots/
 python3 tools/make_icon.py                       # app.png + app.ico (needs Pillow)
+NODE_PATH=$(npm root -g) node tests/fixtures/make_maths_sample.cjs   # the repair test PDF
 ```
 
 Always look at screenshots (Read the PNGs) after any visual change, in light
@@ -25,8 +32,22 @@ and dark. Regenerate `--previews` and `--docs` when a theme's look changes.
 - `senai_remover/core.py`: the PDF cleaner. Decodes each text object (BT…ET)
   through the font's ToUnicode CMap, matches `DEFAULT_PATTERNS`, and deletes only
   the text-showing operators that draw a match. If deleting would shift other
-  text on the same line, the run is hidden with render mode 3 instead. It also
-  strips senai.uk links and matching metadata.
+  text on the same line, the run is hidden with render mode 3 instead. It also:
+  - strips senai.uk links and matching metadata;
+  - draws the new title (`DEFAULT_TITLE`) where the old one started, in a
+    standard font of the same style;
+  - sets the document title to the file name;
+  - owns output naming (`DEFAULT_NAME` "{name}-clean", `name_problem`).
+- `senai_remover/repair.py`: the typesetting repairs. Classifies each `.notdef`
+  glyph by ActualText, superscript position or operator spacing (° · ⟹), and
+  re-sets run-together maths-italic sentences after splitting them with the
+  word list. It reuses the PDF's own fonts where they have the glyphs. A line
+  it can't read confidently is left alone; keep it that way.
+- `senai_remover/pdftext.py`: the glyph walker (position, size, font, colour,
+  CTM per glyph). It also provides `remove_glyphs`, which keeps the pen
+  position, and `draw`, which inserts replacement text in reading order.
+- `senai_remover/_words.py` and `_metrics.py`: generated data (by
+  `tools/make_words.py` and `tools/make_metrics.py`). Don't edit them by hand.
 - `senai_remover/cli.py`: `senai-remover`. Needs only pypdf, never Qt.
 - `senai_remover/gui/`:
   - `model.py`: Qt-free state: the session, job statuses, the output-name plan,
@@ -36,9 +57,10 @@ and dark. Regenerate `--previews` and `--docs` when a theme's look changes.
     outlives windows.
   - `app.py`: `Shell` rebuilds the window when the theme or appearance changes,
     keeping the controller.
-  - `settings.py` / `settings_panel.py`: the saved theme and appearance (an INI
-    via QSettings; `SENAI_SETTINGS_FILE` overrides it), and the slide-in
-    settings bar.
+  - `settings.py` / `settings_panel.py`: the saved theme, appearance and
+    output name (an INI via QSettings; `SENAI_SETTINGS_FILE` overrides it),
+    and the slide-in settings bar. Theme wording that mentions the output
+    name goes through `BaseWindow.naming()` so it follows the setting.
   - `theme.py`: fonts, Lucide icons, the WCAG contrast maths, and Windows
     system preferences.
   - `widgets.py`: shared widgets and the `Labels` class (title case for the
@@ -46,8 +68,10 @@ and dark. Regenerate `--previews` and `--docs` when a theme's look changes.
   - `designs/`: `base.py` holds all shared behaviour (commands, shortcuts,
     drag and drop, menus, settings). Each theme file only builds widgets and
     paints.
-- `tests/`: `test_core`, `test_cli`, `test_gui_model`, and `test_gui`. The last
-  one drives every theme offscreen and checks contrast. The fixture
+- `tests/`: `test_core`, `test_repair`, `test_cli`, `test_gui_model`, and
+  `test_gui`. The last one drives every theme offscreen and checks contrast.
+  `tests/fixtures/maths_sample.pdf` (from `make_maths_sample.cjs`) reproduces
+  SenAI's typesetting faults: Chrome with only the Liberation fonts. The fixture
   `tests/fixtures/senai_sample.pdf` is generated by `make_sample.cjs`. Never
   commit users' real PDFs.
 

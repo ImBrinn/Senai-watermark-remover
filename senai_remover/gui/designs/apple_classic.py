@@ -264,10 +264,9 @@ class AppleClassicWindow(BaseWindow):
         self.stack = QStackedWidget()
         choose = QPushButton(L.choose_files)
         bind(choose, self.act_add_files)
-        self.empty = EmptyState(
-            pixmap("file-plus", t["secondary"], 44, 1.5), "Drop PDFs Here",
-            "Or choose files to clean. Cleaned copies are saved as name_clean.pdf, "
-            "and the originals stay unchanged.", choose)
+        self.empty = EmptyState(pixmap("file-plus", t["secondary"], 44, 1.5), "Drop PDFs Here", "", choose)
+        self.naming(self.empty.body, "Or choose files to clean. Cleaned copies are saved as {example}, "
+                                     "and the originals stay unchanged.")
         self.list_view = FileListView(self.controller.model)
         self.list_view.setItemDelegate(_Rows(self.list_view, t))
         self.list_view.setSpacing(0)

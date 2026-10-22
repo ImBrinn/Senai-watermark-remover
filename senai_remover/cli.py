@@ -10,42 +10,68 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
 
 from . import __version__
-from .core import DEFAULT_PATTERNS, CleanResult, clean_pdf, default_output_path
+from .core import (
+    DEFAULT_NAME,
+    DEFAULT_PATTERNS,
+    DEFAULT_TITLE,
+    CleanResult,
+    clean_pdf,
+    default_output_path,
+    is_output_name,
+    name_problem,
+)
 
 
-def find_pdfs(paths: Iterable[Path], skip_suffix: str = "") -> Iterator[Path]:
+def find_pdfs(paths: Iterable[Path], template: str = DEFAULT_NAME) -> Iterator[Path]:
     """Expand folders into the PDFs directly inside them.
 
-    Files whose name already ends in ``skip_suffix`` (earlier output) are
+    Files that look like earlier cleaned copies (named by ``template``) are
     skipped when scanning a folder, but not when named explicitly.
     """
     for path in paths:
         if path.is_dir():
             for child in sorted(path.iterdir()):
                 if child.is_file() and child.suffix.lower() == ".pdf":
-                    if not (skip_suffix and child.stem.endswith(skip_suffix)):
+                    if not is_output_name(child.stem, template):
                         yield child
         else:
             yield path
 
 
 def describe(result: CleanResult) -> str:
-    """One-line summary of what was removed, e.g. "SenAI Maths, senai.uk x8"."""
-    counts = Counter(text for _, text in result.removed)
-    return ", ".join(t if n == 1 else f"{t} x{n}" for t, n in counts.items())
+    """One-line summary, e.g. "removed SenAI Maths, senai.uk x8; fixed ° x43"."""
+    parts = []
+    removed = Counter(text for _, text in result.removed)
+    if removed:
+        parts.append("removed " + ", ".join(t if n == 1 else f"{t} x{n}" for t, n in removed.items()))
+    if result.title:
+        parts.append(f"title: {result.title}")
+    fixed = Counter(what for _, what in result.repaired)
+    if fixed:
+        parts.append("fixed " + ", ".join(t if n == 1 else f"{t} x{n}" for t, n in fixed.items()))
+    return "; ".join(parts)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="senai-remover",
-        description="Remove the SenAI branding (title and senai.uk footer) from PDFs.",
+        description="Remove the SenAI branding from PDFs, put your own title in its place, "
+                    "and fix SenAI's typesetting.",
     )
     parser.add_argument("paths", nargs="+", type=Path, help="PDF files or folders of PDFs")
     out = parser.add_mutually_exclusive_group()
     out.add_argument("-o", "--output-dir", type=Path,
                      help="save cleaned PDFs here, keeping their names (default: next to the original)")
     out.add_argument("--in-place", action="store_true", help="overwrite the original files")
-    parser.add_argument("--suffix", help='added to output file names (default: "_clean", or "" with -o)')
+    naming = parser.add_mutually_exclusive_group()
+    naming.add_argument("--name", metavar="TEMPLATE",
+                        help='name for cleaned copies, with {name} for the original name '
+                             f'(default: "{DEFAULT_NAME}", or "{{name}}" with -o)')
+    naming.add_argument("--suffix", help="added after the original name instead (--suffix _clean)")
+    parser.add_argument("--title", default=DEFAULT_TITLE,
+                        help=f'title to put where SenAI\'s was (default: "{DEFAULT_TITLE}"; "" for none)')
+    parser.add_argument("--no-repair", action="store_true",
+                        help="don't fix SenAI's typesetting (empty boxes, missing spaces)")
     parser.add_argument("--pattern", action="append", default=[], metavar="REGEX",
                         help="extra text to remove (case-insensitive regex); may be repeated")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -54,27 +80,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # pypdf logs harmless warnings about the generator's slightly-off xref tables.
     logging.getLogger("pypdf").setLevel(logging.ERROR)
     patterns = [*DEFAULT_PATTERNS, *args.pattern]
-    suffix = args.suffix if args.suffix is not None else ("" if args.output_dir else "_clean")
+    if args.name is not None:
+        template = args.name
+    elif args.suffix is not None:
+        template = "{name}" + args.suffix
+    else:
+        template = "{name}" if args.output_dir else DEFAULT_NAME
+    problem = name_problem(template)
+    if problem:
+        parser.error(f"--name {template!r}: {problem}")
 
     failures = cleaned = total = 0
-    for source in find_pdfs(args.paths, skip_suffix=suffix):
+    for source in find_pdfs(args.paths, template):
         total += 1
-        target = source if args.in_place else default_output_path(source, args.output_dir, suffix)
+        target = source if args.in_place else default_output_path(source, args.output_dir, template=template)
         if not args.in_place and target.resolve() == source.resolve():
             print(f"FAIL {source}: output would overwrite the original (use --in-place)", file=sys.stderr)
             failures += 1
             continue
         try:
-            result = clean_pdf(source, target, patterns)
+            result = clean_pdf(source, target, patterns, title=args.title, repair=not args.no_repair)
         except Exception as exc:  # report and carry on with the other files
             print(f"FAIL {source}: {exc}", file=sys.stderr)
             failures += 1
             continue
         for warning in result.warnings:
             print(f"WARN {source.name}: {warning}", file=sys.stderr)
-        if result.changed:
+        if result.changed or result.repaired:
             cleaned += 1
-            print(f"OK   {source} -> {target}  (removed: {describe(result)})")
+            print(f"OK   {source} -> {target}  ({describe(result)})")
         else:
             print(f"--   {source} -> {target}  (no SenAI branding found)")
 

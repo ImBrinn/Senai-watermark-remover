@@ -530,8 +530,8 @@ class ExerciseBookWindow(BaseWindow):
         title.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
         title.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         head.addWidget(title, 0, Qt.AlignLeft)
-        subtitle = QLabel("Clean copies are saved as name_clean.pdf. Originals aren't changed.",
-                          objectName="subtitle")
+        subtitle = self.naming(QLabel(objectName="subtitle"),
+                               "Clean copies are saved as {example}. Originals aren't changed.")
         subtitle.setFixedHeight(GRID + 3)
         subtitle.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.addWidget(subtitle)
@@ -577,8 +577,8 @@ class ExerciseBookWindow(BaseWindow):
         bind(choose, self.act_add_files)
         self.empty_state = EmptyState(
             pixmap("eraser", t["label"], 36, 1.6), "Drop your SenAI PDFs here",
-            "Or choose them from a folder. Each one gets a clean copy without the SenAI title "
-            "or the senai.uk footer.", choose, width=360)
+            "Or choose them from a folder. Each one gets a clean copy with your title in place of "
+            "SenAI's and no senai.uk footer.", choose, width=360)
         self.empty = EmptyPage(self.page, t, self.empty_state)
         self.list_view = FileListView(self.controller.model)
         self.list_view.setItemDelegate(_Rows(self.list_view, t))

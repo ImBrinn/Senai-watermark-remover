@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "senai-watermark-remover"
 dynamic = ["version"]
-description = "Remove the SenAI branding (title and senai.uk footer) from PDFs"
+description = "Remove the SenAI branding from PDFs, add your own title, and fix SenAI's typesetting"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["pypdf>=5.0"]

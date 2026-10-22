@@ -395,8 +395,8 @@ class FluentWindow(BaseWindow):
         title.setAccessibleName(L.run)
         page.addWidget(title)
         page.addSpacing(4)
-        subtitle = QLabel("Removes the SenAI title and senai.uk footer from your PDFs. "
-                          "Your originals aren't changed.", objectName="subtitle")
+        subtitle = QLabel("Swaps the SenAI title for yours, removes the senai.uk footer and fixes "
+                          "broken symbols. Your originals aren't changed.", objectName="subtitle")
         subtitle.setWordWrap(True)
         subtitle.setFont(font(14, families=TEXT_FONTS))
         page.addWidget(subtitle)
@@ -465,7 +465,7 @@ class FluentWindow(BaseWindow):
                            browse, width=300)
         inner.title.setFont(font(16, QFont.DemiBold, families=TEXT_FONTS))
         inner.body.setFont(font(14, families=TEXT_FONTS))
-        caption = QLabel("Folders work too. Cleaned copies are saved as name_clean.pdf.", objectName="caption")
+        caption = self.naming(QLabel(objectName="caption"), "Folders work too. Cleaned copies are saved as {example}.")
         caption.setFont(font(12, families=TEXT_FONTS))
         caption.setAlignment(Qt.AlignCenter)
         inner.layout().addSpacing(14)

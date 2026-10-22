@@ -29,6 +29,7 @@ class Shell(QObject):
         self.designs = DESIGNS
         self.settings = settings or Settings()
         self.controller = Controller(self)
+        self.controller.set_name_template(self.settings.output_name)
         self.window = None
         self.index = self.saved_index()
         app.styleHints().colorSchemeChanged.connect(self._scheme_changed)
@@ -78,6 +79,11 @@ class Shell(QObject):
     def set_appearance(self, mode: str) -> None:
         self.settings.appearance = mode
         self.show(self.index, settings_open=True, focus="appearance")
+
+    def set_output_name(self, template: str) -> None:
+        """Save what cleaned copies are called; the window updates its wording."""
+        self.settings.output_name = template
+        self.controller.set_name_template(template)
 
     def _settings_open(self) -> bool:
         return self.window is not None and self.window.settings_open
