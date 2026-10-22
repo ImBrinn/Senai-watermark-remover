@@ -83,7 +83,14 @@ jobs:
           if (Test-Path senai_remover/gui/assets) {
             # v2 and later: the Qt app and its bundled fonts, icons and previews.
             pip install ".[gui]" pyinstaller
-            pyinstaller --onefile --windowed --name SenAI-Watermark-Remover `
+            # The product name and version in the .exe's details (needed for
+            # code signing). Tags before this tool existed build without them.
+            $details = @()
+            if (Test-Path tools/make_version_info.py) {
+              python tools/make_version_info.py build/version_info.txt
+              $details = @("--version-file", "build/version_info.txt")
+            }
+            pyinstaller --onefile --windowed --name SenAI-Watermark-Remover @details `
               --icon senai_remover/gui/assets/app.ico `
               --add-data "senai_remover/gui/assets:senai_remover/gui/assets" `
               --paths . senai_remover/__main__.py

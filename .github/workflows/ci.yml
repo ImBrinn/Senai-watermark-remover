@@ -39,10 +39,20 @@ jobs:
         run: pytest -q
       - name: Build
         run: >-
+          python tools/make_version_info.py build/version_info.txt &&
           pyinstaller --onefile --windowed --name SenAI-Watermark-Remover
+          --version-file build/version_info.txt
           --icon senai_remover/gui/assets/app.ico
           --add-data "senai_remover/gui/assets:senai_remover/gui/assets"
           --paths . senai_remover/__main__.py
+      - name: Version details
+        shell: pwsh
+        run: |
+          $info = (Get-Item dist/SenAI-Watermark-Remover.exe).VersionInfo
+          $info | Format-List ProductName, ProductVersion, FileDescription, FileVersion, LegalCopyright
+          $version = python -c "import senai_remover; print(senai_remover.__version__)"
+          if ($info.ProductName -ne "SenAI Watermark Remover") { throw "Wrong product name: $($info.ProductName)" }
+          if ($info.ProductVersion -ne $version) { throw "Wrong version: $($info.ProductVersion), expected $version" }
       - name: Smoke test
         shell: pwsh
         run: |
