@@ -3,6 +3,12 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.2] - 2026-10-22
+
+### Fixed
+- **The command line no longer stops partway through on Windows.** It used to crash after cleaning a file whose summary included a symbol the Windows console can't show, such as the ⇒ arrow, so later files weren't cleaned. The same happened with file names containing such characters. They now show as "?".
+- The command line now describes fixes in words, for example "fixed 43 degree signs, 12 sentences respaced".
+
 ## [2.1.1] - 2026-10-22
 
 ### Added
@@ -59,6 +65,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Command line** (`senai-remover`) for files and folders, with `-o`, `--in-place`, `--suffix` and `--pattern`.
 - A single-file **Windows `.exe`**.
 
+[2.1.2]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.1.2
 [2.1.1]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.1.1
 [2.1.0]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.1.0
 [2.0.0]: https://github.com/ImBrinn/Senai-watermark-remover/releases/tag/v2.0.0

@@ -1,4 +1,8 @@
+import os
 import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from pypdf import PdfReader
@@ -6,6 +10,8 @@ from pypdf import PdfReader
 from senai_remover.cli import main
 
 from conftest import FIXTURE
+
+MATHS = Path(__file__).parent / "fixtures" / "maths_sample.pdf"
 
 
 def has_branding(path):
@@ -89,3 +95,24 @@ def test_bad_files_are_reported_and_others_still_processed(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "FAIL" in err and "broken.pdf" in err and "missing.pdf" in err
     assert not has_branding(tmp_path / "good-clean.pdf")
+
+
+def test_repairs_are_described_in_words(tmp_path, capsys):
+    source = tmp_path / "week7.pdf"
+    shutil.copy(MATHS, source)
+    assert main([str(source)]) == 0
+    out = capsys.readouterr().out
+    assert "fixed 4 degree signs, 1 multiplication dot, 1 arrow, 2 sentences respaced" in out
+
+
+def test_output_survives_a_windows_console(tmp_path):
+    # Windows consoles and pipes are often Windows-1252, with no "⟹" and no
+    # emoji: printing must not crash, so every file still gets cleaned.
+    for name in ("week7.pdf", "notes 📐.pdf"):
+        shutil.copy(MATHS, tmp_path / name)
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    done = subprocess.run([sys.executable, "-m", "senai_remover.cli", str(tmp_path)],
+                          capture_output=True, env=env, cwd=Path(__file__).parent.parent)
+    assert done.returncode == 0, done.stderr.decode("cp1252", "replace")
+    assert b"Cleaned 2 of 2 file(s)." in done.stdout
+    assert (tmp_path / "notes 📐-clean.pdf").exists()

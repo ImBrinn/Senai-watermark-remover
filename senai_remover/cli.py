@@ -38,17 +38,29 @@ def find_pdfs(paths: Iterable[Path], template: str = DEFAULT_NAME) -> Iterator[P
             yield path
 
 
+# How each kind of repair is described: (one, more than one).
+FIXES = {
+    "°": ("degree sign", "degree signs"),
+    "·": ("multiplication dot", "multiplication dots"),
+    "⟹": ("arrow", "arrows"),
+    "⇒": ("arrow", "arrows"),
+    "spaces": ("sentence respaced", "sentences respaced"),
+}
+
+
 def describe(result: CleanResult) -> str:
-    """One-line summary, e.g. "removed SenAI Maths, senai.uk x8; fixed ° x43"."""
+    """One-line summary, e.g. "removed SenAI Maths, senai.uk x8; fixed 43 degree signs"."""
     parts = []
     removed = Counter(text for _, text in result.removed)
     if removed:
         parts.append("removed " + ", ".join(t if n == 1 else f"{t} x{n}" for t, n in removed.items()))
     if result.title:
         parts.append(f"title: {result.title}")
-    fixed = Counter(what for _, what in result.repaired)
+    fixed = Counter(FIXES.get(what, ("symbol", "symbols")) for _, what in result.repaired)
+    order = list(dict.fromkeys([*FIXES.values(), ("symbol", "symbols")]))
     if fixed:
-        parts.append("fixed " + ", ".join(t if n == 1 else f"{t} x{n}" for t, n in fixed.items()))
+        parts.append("fixed " + ", ".join(f"{fixed[k]} {k[0] if fixed[k] == 1 else k[1]}"
+                                          for k in order if fixed[k]))
     return "; ".join(parts)
 
 
@@ -76,6 +88,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="extra text to remove (case-insensitive regex); may be repeated")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
+    _replace_unprintable()
 
     # pypdf logs harmless warnings about the generator's slightly-off xref tables.
     logging.getLogger("pypdf").setLevel(logging.ERROR)
@@ -117,6 +130,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
     print(f"Cleaned {cleaned} of {total} file(s).")
     return 1 if failures else 0
+
+
+def _replace_unprintable() -> None:
+    """Print characters the console can't show as "?" instead of crashing.
+
+    Windows consoles and pipes often use Windows-1252, which has no "⟹" and
+    no characters from other alphabets, which file names can contain.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
 
 
 if __name__ == "__main__":
