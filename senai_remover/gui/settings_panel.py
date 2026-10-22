@@ -1,7 +1,8 @@
 """The settings bar: slides in from the right of any theme, with the four
-themes as preview cards, the appearance choice and the name for cleaned
-copies. Picking a theme restyles the window straight away and keeps the bar
-open, so people can compare themes; the file list and results carry over."""
+themes as preview cards, the appearance choice, the title for page 1 and
+the name for cleaned copies. Picking a theme restyles the window straight
+away and keeps the bar open, so people can compare themes; the file list
+and results carry over."""
 
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import DEFAULT_NAME, name_problem
+from ..core import DEFAULT_NAME, DEFAULT_TITLE, MAX_TITLE, name_problem, title_problem
 from .theme import ASSETS, icon, mix, pixmap
 from .widgets import font, icon_button
 
@@ -233,17 +234,44 @@ class SettingsPanel(QFrame):
         content.addWidget(note)
 
         content.addSpacing(18)
+        content.addWidget(QLabel("Title", objectName="settingsSection"))
+        content.addSpacing(10)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        self.title_field = QLineEdit(shell.settings.title, objectName="textField")
+        self.title_field.setAccessibleName("Title on page 1")
+        self.title_field.setPlaceholderText(title("No Title", "No title"))
+        self.title_field.setMaxLength(MAX_TITLE)
+        self.title_field.textEdited.connect(self._title_edited)
+        title_row.addWidget(self.title_field, 1)
+        self.title_reset = QPushButton("Reset", objectName="resetButton")
+        self.title_reset.setCursor(Qt.PointingHandCursor)
+        self.title_reset.setAccessibleName(f"Reset the title to {DEFAULT_TITLE}")
+        self.title_reset.setToolTip(f"Go back to \u201c{DEFAULT_TITLE}\u201d")
+        self.title_reset.clicked.connect(self._reset_title)
+        title_row.addWidget(self.title_reset)
+        content.addLayout(title_row)
+        content.addSpacing(8)
+        self.title_note = QLabel(objectName="settingsNote")
+        self.title_note.setWordWrap(True)
+        content.addWidget(self.title_note)
+        self.title_error = QLabel(objectName="fieldError")
+        self.title_error.setWordWrap(True)
+        content.addWidget(self.title_error)
+        self._show_title(self.title_field.text())
+
+        content.addSpacing(18)
         content.addWidget(QLabel(title("Cleaned Copies", "Cleaned copies"), objectName="settingsSection"))
         content.addSpacing(10)
         name_row = QHBoxLayout()
         name_row.setSpacing(6)
-        self.name_field = QLineEdit(shell.settings.output_name, objectName="nameField")
+        self.name_field = QLineEdit(shell.settings.output_name, objectName="textField")
         self.name_field.setAccessibleName("Name for cleaned copies")
         self.name_field.setPlaceholderText(DEFAULT_NAME)
         self.name_field.setClearButtonEnabled(False)
         self.name_field.textEdited.connect(self._name_edited)
         name_row.addWidget(self.name_field, 1)
-        self.name_reset = QPushButton("Reset", objectName="nameReset")
+        self.name_reset = QPushButton("Reset", objectName="resetButton")
         self.name_reset.setCursor(Qt.PointingHandCursor)
         self.name_reset.setAccessibleName(f"Reset the name to {DEFAULT_NAME}")
         self.name_reset.setToolTip(f"Go back to {DEFAULT_NAME}")
@@ -254,7 +282,7 @@ class SettingsPanel(QFrame):
         self.name_example = QLabel(objectName="settingsNote")
         self.name_example.setWordWrap(True)
         content.addWidget(self.name_example)
-        self.name_error = QLabel(objectName="nameError")
+        self.name_error = QLabel(objectName="fieldError")
         self.name_error.setWordWrap(True)
         content.addWidget(self.name_error)
         name_note = QLabel("{name} is the original file's name. The original is never changed.",
@@ -325,7 +353,8 @@ class SettingsPanel(QFrame):
 
     def _sync_enabled(self, *_) -> None:
         running = self.window_.controller.running
-        for button in self.cards.buttons() + self.appearance.buttons() + [self.name_field, self.name_reset]:
+        fields = [self.title_field, self.title_reset, self.name_field, self.name_reset]
+        for button in self.cards.buttons() + self.appearance.buttons() + fields:
             button.setEnabled(not running)
         self.busy_note.setVisible(running)
 
@@ -341,6 +370,33 @@ class SettingsPanel(QFrame):
         else:
             self.window_.shell.set_appearance(mode)
 
+    def _title_edited(self, text: str) -> None:
+        if title_problem(text) is None:
+            self.window_.shell.set_title(text)
+        self._show_title(text)
+
+    def _reset_title(self) -> None:
+        self.title_field.setText(DEFAULT_TITLE)
+        self._title_edited(DEFAULT_TITLE)
+        self.title_field.setFocus(Qt.OtherFocusReason)
+
+    def _show_title(self, text: str) -> None:
+        """What happens to page 1 (or what's wrong) under the title field."""
+        problem = title_problem(text)
+        _show_error(self.title_field, problem)
+        if problem is None:
+            note = ("Replaces \u201cSenAI Maths\u201d at the top of page 1."
+                    if text else "No title: \u201cSenAI Maths\u201d is just removed.")
+            self.title_note.setText(note)
+            self.title_field.setAccessibleDescription(note)
+        else:
+            self.title_field.setAccessibleDescription(
+                f"{problem} Cleaned copies still get the last title that worked.")
+        self.title_note.setVisible(problem is None)
+        self.title_error.setText(problem or "")
+        self.title_error.setVisible(problem is not None)
+        self.title_reset.setVisible(text != DEFAULT_TITLE)
+
     def _name_edited(self, text: str) -> None:
         if name_problem(text) is None:
             self.window_.shell.set_output_name(text)
@@ -355,9 +411,7 @@ class SettingsPanel(QFrame):
         """The example (or what's wrong) under the name field."""
         problem = name_problem(text)
         controller = self.window_.controller
-        self.name_field.setProperty("error", problem is not None)
-        self.name_field.style().unpolish(self.name_field)
-        self.name_field.style().polish(self.name_field)
+        _show_error(self.name_field, problem)
         if problem is None:
             example = controller.example_name("Algebra homework")
             self.name_example.setText(f"For example: {example}")
@@ -375,7 +429,7 @@ class SettingsPanel(QFrame):
 
     def focus_chain(self) -> list:
         chain = [self.close_button, *self.cards.buttons(), *self.appearance.buttons(),
-                 self.name_field, self.name_reset]
+                 self.title_field, self.title_reset, self.name_field, self.name_reset]
         return [w for w in chain if w.isEnabled() and w.isVisibleTo(self)]
 
     def focusNextPrevChild(self, next: bool) -> bool:
@@ -387,6 +441,13 @@ class SettingsPanel(QFrame):
         target = chain[(index + (1 if next else -1)) % len(chain)]
         target.setFocus(Qt.TabFocusReason if next else Qt.BacktabFocusReason)
         return True
+
+
+def _show_error(field: QLineEdit, problem) -> None:
+    """Give ``field`` its error border while ``problem`` isn't None."""
+    field.setProperty("error", problem is not None)
+    field.style().unpolish(field)
+    field.style().polish(field)
 
 
 def _stylesheet(t: dict) -> str:
@@ -409,20 +470,20 @@ def _stylesheet(t: dict) -> str:
     QPushButton#segment:checked {{ background: {t['accent']}; color: {t['on_accent']}; font-weight: 600; }}
     QPushButton#segment:focus {{ border-color: {mix(t['accent'], t['label'], 0.6)}; }}
     QPushButton#segment:disabled {{ color: {t['disabled']}; }}
-    QLineEdit#nameField {{ background: {mix(t['label'], t['surface'], 0.04)}; color: {t['label']};
+    QLineEdit#textField {{ background: {mix(t['label'], t['surface'], 0.04)}; color: {t['label']};
                            border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 9px;
                            font-family: Inter; font-size: 13px; selection-background-color: {t['accent']};
                            selection-color: {t['on_accent']}; }}
-    QLineEdit#nameField:focus {{ border: 2px solid {t['accent']}; padding: 5px 8px; }}
-    QLineEdit#nameField[error="true"] {{ border: 2px solid {t['danger']}; padding: 5px 8px; }}
-    QLineEdit#nameField:disabled {{ color: {t['disabled']}; }}
-    QPushButton#nameReset {{ background: transparent; color: {t['accent_text']}; border: 2px solid transparent;
+    QLineEdit#textField:focus {{ border: 2px solid {t['accent']}; padding: 5px 8px; }}
+    QLineEdit#textField[error="true"] {{ border: 2px solid {t['danger']}; padding: 5px 8px; }}
+    QLineEdit#textField:disabled {{ color: {t['disabled']}; }}
+    QPushButton#resetButton {{ background: transparent; color: {t['accent_text']}; border: 2px solid transparent;
                              border-radius: 6px; padding: 5px 8px; font-family: Inter; font-size: 13px;
                              font-weight: 600; }}
-    QPushButton#nameReset:hover {{ background: {mix(t['label'], t['surface'], 0.08)}; }}
-    QPushButton#nameReset:focus {{ border-color: {t['accent']}; }}
-    QPushButton#nameReset:disabled {{ color: {t['disabled']}; }}
-    #nameError {{ color: {t['danger']}; font-size: 12px; }}
+    QPushButton#resetButton:hover {{ background: {mix(t['label'], t['surface'], 0.08)}; }}
+    QPushButton#resetButton:focus {{ border-color: {t['accent']}; }}
+    QPushButton#resetButton:disabled {{ color: {t['disabled']}; }}
+    #fieldError {{ color: {t['danger']}; font-size: 12px; }}
     QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
     QScrollBar::handle:vertical {{ background: {mix(t['label'], t['surface'], 0.25)}; border-radius: 3px; min-height: 30px; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}

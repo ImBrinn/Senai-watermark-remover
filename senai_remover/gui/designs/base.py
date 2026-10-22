@@ -280,9 +280,12 @@ class BaseWindow(QMainWindow):
         menu.exec(self.list_view.viewport().mapToGlobal(pos))
 
     def _about(self) -> None:
+        title = self.controller.title
+        replaces = (f"Replaces the SenAI title with \u201c{title}\u201d" if title
+                    else "Removes the SenAI title")
         QMessageBox.about(
             self, self.labels.about,
-            "Replaces the SenAI title with \u201cBrinns autocompleter\u201d, removes the senai.uk "
+            f"{replaces}, removes the senai.uk "
             "footer, and fixes SenAI's missing symbols and spaces.\n\n"
             f"Cleaned copies are saved as {self.controller.example_name()}; "
             "originals are never changed.\n\n"

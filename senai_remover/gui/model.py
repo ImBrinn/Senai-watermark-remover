@@ -17,7 +17,7 @@ from typing import Iterable, Optional
 from pypdf.errors import FileNotDecryptedError, PyPdfError
 
 from ..cli import find_pdfs
-from ..core import DEFAULT_NAME, clean_pdf, output_name
+from ..core import DEFAULT_NAME, DEFAULT_TITLE, clean_pdf, output_name
 
 
 class Status(Enum):
@@ -117,6 +117,8 @@ class Session:
         self.output_dir: Optional[Path] = None
         # What cleaned copies are called; {name} is the original name.
         self.name_template = DEFAULT_NAME
+        # The title put where SenAI's was on page 1; "" for none.
+        self.title = DEFAULT_TITLE
 
     def add(self, paths: Iterable[Path]) -> AddResult:
         result = AddResult()
@@ -176,14 +178,14 @@ class Session:
         return [job.output for job in self.jobs if job.output is not None]
 
 
-def run_job(job: FileJob, target: Path) -> None:
+def run_job(job: FileJob, target: Path, title: str = DEFAULT_TITLE) -> None:
     """Clean one file, recording the outcome on the job."""
     job.status = Status.WORKING
     job.message = job.detail = ""
     job.warnings = []
     job.output = None
     try:
-        result = clean_pdf(job.source, target)
+        result = clean_pdf(job.source, target, title=title)
     except Exception as exc:  # shown on the file's row
         job.status = Status.FAILED
         job.removed = job.fixed = 0

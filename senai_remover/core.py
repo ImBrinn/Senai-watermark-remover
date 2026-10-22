@@ -29,7 +29,7 @@ from pypdf.generic import (
     NumberObject,
 )
 
-from .pdftext import Glyph, Run, _FontDecoder, draw, encode, glyphs, page_fonts, standard_font
+from .pdftext import Glyph, Run, _FontDecoder, draw, encode, glyphs, page_fonts, standard_font, text_width
 from .repair import repair_page
 
 __all__ = ["_FontDecoder"]  # re-exported for the tests
@@ -40,6 +40,8 @@ DEFAULT_TITLE = "Brinns autocompleter"
 # The title on page 1, which gets replaced; other branding is just removed.
 TITLE_PATTERN = re.compile(r"\bsen\s?ai\s+maths?\b", re.IGNORECASE)
 TITLE_MARK = NameObject("/BrinnsTitle")  # a no-op marker for where the title goes
+TITLE_FACES = ("Helvetica", "Helvetica-Bold", "Times-Roman", "Times-Bold")  # what titles are drawn in
+MAX_TITLE = 50
 
 # Cleaned copies are called this, with {name} standing for the original name.
 DEFAULT_NAME = "{name}-clean"
@@ -120,7 +122,8 @@ def clean_pdf(
             fonts = _page_fonts(page)
             names = _FontNames(page, writer, standard)
             ops = list(content.operations)
-            new_title = _title_run(ops, fonts, fonts_seen, title) if number == 1 and title else None
+            width = (float(page.mediabox.left), float(page.mediabox.right))
+            new_title = _title_run(ops, fonts, fonts_seen, title, width) if number == 1 and title else None
             if new_title is not None:
                 # Mark where the old title was, so the new one takes its place.
                 ops.insert(new_title[1].end + 1, ([TITLE_MARK], b"MP"))
@@ -176,6 +179,18 @@ def name_problem(template: str) -> Optional[str]:
     return None
 
 
+def title_problem(title: str) -> Optional[str]:
+    """Why ``title`` can't be put on page 1, in plain words, or None.
+    An empty title is fine: SenAI's is just removed."""
+    if len(title) > MAX_TITLE:
+        return f"That title is too long. Keep it to {MAX_TITLE} characters."
+    bad = sorted({c for c in title if any(encode(face, c) is None for face in TITLE_FACES)})
+    if bad:
+        shown = " ".join(repr(c) if ord(c) < 32 or c.isspace() else c for c in bad)
+        return f"The title can't use {shown}. Try letters, numbers and everyday punctuation."
+    return None
+
+
 def is_output_name(stem: str, template: str = DEFAULT_NAME) -> bool:
     """Whether a file called ``stem`` looks like an earlier cleaned copy."""
     if stem.endswith("_clean"):  # what versions before 2.1.1 called them
@@ -209,9 +224,12 @@ def default_output_path(
     return folder / output_name(source, template)
 
 
-def _title_run(ops, fonts, cache, title: str) -> Optional[tuple[Run, Glyph]]:
+def _title_run(ops, fonts, cache, title: str,
+               page: Optional[tuple[float, float]] = None) -> Optional[tuple[Run, Glyph]]:
     """The new title, drawn where SenAI's title starts, in the same size and
-    style, and the old title's first glyph."""
+    style, and the old title's first glyph. With ``page`` (its left and right
+    edges), a title too long to fit before a right margin as wide as the
+    left one is made smaller to fit."""
     found = [g for g in glyphs(ops, fonts, cache) if g.visible and g.upright]
     text, owners = "", []
     for i, g in enumerate(found):
@@ -231,7 +249,14 @@ def _title_run(ops, fonts, cache, title: str) -> Optional[tuple[Run, Glyph]]:
     data = encode(face, title)
     if data is None or first.end < 0:
         return None
-    return Run(face, first.size, first.x, first.y, data, first.fill), first
+    size = first.size
+    if page is not None:
+        left, right = page
+        room = right - first.x - (first.x - left)
+        width = text_width(face, data) * size
+        if 0 < room < width:
+            size *= room / width
+    return Run(face, size, first.x, first.y, data, first.fill), first
 
 
 def _place_title(ops, new_title: Optional[tuple[Run, Glyph]], names: "_FontNames") -> list:

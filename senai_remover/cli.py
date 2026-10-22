@@ -19,6 +19,7 @@ from .core import (
     default_output_path,
     is_output_name,
     name_problem,
+    title_problem,
 )
 
 
@@ -102,6 +103,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     problem = name_problem(template)
     if problem:
         parser.error(f"--name {template!r}: {problem}")
+    problem = title_problem(args.title)
+    if problem:
+        parser.error(f"--title {args.title!r}: {problem}")
 
     failures = cleaned = total = 0
     for source in find_pdfs(args.paths, template):

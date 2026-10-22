@@ -51,7 +51,7 @@
 
 ## Highlights
 
-- **Your title, not SenAI’s.** “SenAI Maths” at the top of page 1 becomes **Brinns autocompleter**, in the same place, size and style. The senai.uk footer is deleted from the PDF itself, not hidden under a white box.
+- **Your title, not SenAI’s.** “SenAI Maths” at the top of page 1 becomes **Brinns autocompleter**, or a title of your own from Settings, in the same place, size and style. The senai.uk footer is deleted from the PDF itself, not hidden under a white box.
 - **Fixes SenAI’s typesetting.** Empty boxes where SenAI’s PDFs lose a symbol become proper degree signs (180°), multiplication dots (2 · 3) and arrows (⇒), and sentences printed with no spaces (“Anisoscelestriangle…”) are set again with their spaces.
 - **Never touches your originals.** Cleaned copies are saved as `name-clean.pdf`, next to the originals or in a folder you choose. You can change the name in Settings.
 - **Drag and drop.** Drop single PDFs or a whole folder onto the window.
@@ -128,6 +128,7 @@ Open Settings with the gear button in any theme, from the menus, or with <kbd>Ct
 
 - **Theme**: the four themes as preview cards. Click one to switch instantly.
 - **Appearance**: **Match system**, **Light** or **Dark**.
+- **Title**: what goes where “SenAI Maths” was on page 1. It starts as **Brinns autocompleter**. Leave it empty for no title, or press **Reset** to go back. A long title is made smaller to fit the page.
 - **Cleaned copies**: what the cleaned copies are called. `{name}` stands for the original file’s name, so the default `{name}-clean` turns `Week 3.pdf` into `Week 3-clean.pdf`. Try `{name} (Brinn)` or `Brinn - {name}`. An example updates as you type, and a name Windows wouldn’t allow is pointed out straight away.
 
 Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Remover.ini`.
@@ -135,7 +136,7 @@ Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Rem
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the four theme preview cards, the Appearance choice and the name for cleaned copies">
+    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the four theme preview cards, the Appearance choice, the title for page 1 and the name for cleaned copies">
   </picture>
 </p>
 
@@ -365,7 +366,7 @@ senai_remover/
     ├── app.py           start-up and theme switching
     ├── controller.py    file list model and background cleaning
     ├── model.py         file statuses, output names, messages (no Qt)
-    ├── settings.py      saved theme, appearance and output name
+    ├── settings.py      saved theme, appearance, title and output name
     ├── settings_panel.py
     ├── theme.py         fonts, icons, colour maths, system settings
     ├── widgets.py       shared widgets

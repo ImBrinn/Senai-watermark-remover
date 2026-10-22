@@ -3,6 +3,15 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-10-22
+
+### Added
+- **Title box in Settings.** Change the title that goes where “SenAI Maths” was on page 1, or leave it empty for no title. It's saved for next time, and Reset brings back **Brinns autocompleter**. A character the PDF's fonts can't draw is pointed out straight away.
+
+### Changed
+- A long title is made smaller so it always fits across page 1, instead of running off the edge.
+- Titles longer than 50 characters, or with characters the title fonts can't draw, are explained instead of being quietly left off. `--title` checks them the same way.
+
 ## [2.1.2] - 2026-10-22
 
 ### Fixed

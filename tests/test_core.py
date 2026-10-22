@@ -5,7 +5,7 @@ from pypdf import PdfReader
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from senai_remover import DEFAULT_PATTERNS, clean_pdf, default_output_path
-from senai_remover.core import _FontDecoder, is_output_name, name_problem, output_name
+from senai_remover.core import _FontDecoder, is_output_name, name_problem, output_name, title_problem
 
 from conftest import FIXTURE
 
@@ -171,6 +171,32 @@ def test_title_is_drawn_like_the_old_one(tmp_path):
     assert (round(run.x), round(run.y)) == (round(old.x), round(old.y))  # where SenAI's started
     assert run.font == "Helvetica-Bold"  # SenAI's title is Liberation Sans Bold
     assert 15 < run.size < 18 and run.data == b"Brinns autocompleter"
+
+
+def test_long_title_is_made_smaller_to_fit(tmp_path):
+    from senai_remover.core import _page_fonts, _title_run
+    from senai_remover.pdftext import text_width
+
+    page = PdfReader(FIXTURE).pages[0]
+    box = (float(page.mediabox.left), float(page.mediabox.right))
+    long = "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+    run, old = _title_run(page.get_contents().operations, _page_fonts(page), {}, long, box)
+    assert run.size < old.size
+    right = run.x + text_width(run.font, run.data) * run.size
+    assert abs((box[1] - right) - (run.x - box[0])) < 0.01  # margins match
+    short, _ = _title_run(page.get_contents().operations, _page_fonts(page), {}, "Week 7", box)
+    assert short.size == old.size
+
+
+def test_title_problems():
+    assert title_problem("Brinns autocompleter") is None
+    assert title_problem("") is None  # no title
+    assert title_problem("Café maths – week 7 (£5 & 50%)") is None
+    assert title_problem("x" * 50) is None
+    assert title_problem("x" * 51) == "That title is too long. Keep it to 50 characters."
+    assert title_problem("Maths \u2192 done \U0001F600") == (
+        "The title can't use \u2192 \U0001F600. Try letters, numbers and everyday punctuation.")
+    assert "'\\t'" in title_problem("a\tb")
 
 
 def test_no_title_added_without_senais(make_pdf, tmp_path):
