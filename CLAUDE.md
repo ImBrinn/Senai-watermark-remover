@@ -21,6 +21,7 @@ python3 tools/screenshots.py OUT_DIR [1-4]       # every theme × light/dark × 
 python3 tools/screenshots.py --previews          # Settings card images → senai_remover/gui/assets/previews/
 python3 tools/screenshots.py --docs              # README images → docs/screenshots/
 python3 tools/make_icon.py                       # app.png + app.ico (needs Pillow)
+python3 tools/make_version_info.py build/version_info.txt   # .exe details for PyInstaller --version-file
 NODE_PATH=$(npm root -g) node tests/fixtures/make_maths_sample.cjs   # the repair test PDF
 ```
 
@@ -107,6 +108,9 @@ Rules the tests enforce or that reviews expect:
   which Wine lacks, and Wine is how the `.exe` gets tested here.
 - The PyInstaller command is in README → Building the Windows .exe. Run it with
   `--add-data` for `senai_remover/gui/assets`.
+- The `.exe` carries its product name and version (`tools/make_version_info.py`
+  → `--version-file`). SignPath Foundation's free code signing needs them, plus
+  the MIT `LICENSE` and the README's "Code signing policy" section; keep all three.
 - The `/build-exe` skill builds and smoke-tests the `.exe` under Wine in a cloud
   session.
 

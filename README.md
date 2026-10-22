@@ -47,6 +47,7 @@
 - [How it works](#how-it-works)
 - [Accessibility](#accessibility)
 - [Building from source](#building-from-source)
+- [Code signing policy](#code-signing-policy)
 - [Credits and licences](#credits-and-licences)
 
 ## Highlights
@@ -324,7 +325,9 @@ The tests cover the PDF cleaner, the typesetting repairs, the command line and t
 
 ```bash
 pip install ".[gui]" pyinstaller
+python tools/make_version_info.py build/version_info.txt
 pyinstaller --onefile --windowed --name SenAI-Watermark-Remover \
+  --version-file build/version_info.txt \
   --icon senai_remover/gui/assets/app.ico \
   --add-data "senai_remover/gui/assets:senai_remover/gui/assets" \
   --paths . senai_remover/__main__.py
@@ -373,14 +376,26 @@ senai_remover/
     ├── designs/         base.py plus one file per theme
     └── assets/          fonts, icons, theme previews, app icon
 tests/                   pytest suite and the sample PDFs
-tools/                   screenshots, icon, word list and font width generators
+tools/                   screenshots, icon, .exe details, word list and font width generators
 docs/screenshots/        README images
 .github/workflows/       ci.yml and release.yml
 CLAUDE.md, .claude/      Claude Code project: context, settings, hook, skills
 ```
 </details>
 
+## Code signing policy
+
+Releases aren't code-signed yet. When they are, this policy applies:
+
+- Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+- Only `SenAI-Watermark-Remover.exe` is signed, and only when the [Release workflow](.github/workflows/release.yml) has built it on GitHub from this repository's source. Nothing built anywhere else is signed.
+- Every release is approved by hand before it's signed.
+- Team roles: [Brinn (ImBrinn)](https://github.com/ImBrinn) is the committer, reviewer and approver. Changes from anyone else are reviewed before they're merged.
+- Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. It never connects to the internet; your PDFs stay on your computer.
+
 ## Credits and licences
+
+SenAI Watermark Remover is free and open source under the [MIT licence](LICENSE). It uses:
 
 - [Qt 6.8](https://www.qt.io/) via [PySide6](https://pypi.org/project/PySide6-Essentials/) (LGPL)
 - [Inter](https://rsms.me/inter/) typeface (SIL Open Font License)
