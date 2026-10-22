@@ -48,7 +48,7 @@ jobs:
         run: |
           Copy-Item tests/fixtures/senai_sample.pdf sample.pdf
           python -m senai_remover sample.pdf
-          if (-not (Test-Path sample_clean.pdf)) { throw "CLI produced no output" }
+          if (-not (Test-Path sample-clean.pdf)) { throw "CLI produced no output" }
       - uses: actions/upload-artifact@v4
         with:
           name: SenAI-Watermark-Remover-windows

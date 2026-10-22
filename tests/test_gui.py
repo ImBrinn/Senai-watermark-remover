@@ -107,8 +107,9 @@ def test_add_clean_and_report(shell, pdfs, index):
     jobs = s.controller.jobs
     assert [job.status for job in jobs] == [Status.CLEANED, Status.CLEANED]
     for job in jobs:
-        assert job.output == job.source.with_name(job.source.stem + "_clean.pdf")
+        assert job.output == job.source.with_name(job.source.stem + "-clean.pdf")
         assert "senai" not in text_of(job.output)
+        assert "brinns autocompleter" in text_of(job.output)
     assert s.controller.last_summary.text() == "2 PDFs cleaned"
     assert window.act_show.isEnabled() and window.act_run.isEnabled()
 
@@ -169,7 +170,7 @@ def test_output_folder(shell, pdfs, tmp_path):
     out.mkdir()
     s.controller.set_output_dir(out)
     run_and_wait(s.controller)
-    assert sorted(p.name for p in out.iterdir()) == ["Algebra_clean.pdf", "Angles_clean.pdf"]
+    assert sorted(p.name for p in out.iterdir()) == ["Algebra-clean.pdf", "Angles-clean.pdf"]
     assert all(p.exists() for p in pdfs)  # originals untouched
 
 
@@ -267,6 +268,7 @@ def test_settings_locked_while_cleaning(shell, monkeypatch):
     monkeypatch.setattr(Controller, "running", property(lambda self: True))
     panel._sync_enabled()
     assert not any(b.isEnabled() for b in panel.cards.buttons() + panel.appearance.buttons())
+    assert not panel.name_field.isEnabled()
     assert not panel.busy_note.isHidden()
 
 
@@ -286,9 +288,11 @@ def test_every_theme_shows_a_settings_button(shell, index):
 def test_settings_bar_contrast(cls, prefs):
     t = sys.modules[cls.__module__].tokens(prefs)
     card_hover = mix(t["label"], t["surface"], 0.06)
+    field = mix(t["label"], t["surface"], 0.04)
     pairs = [("label", t["label"], t["surface"]), ("secondary", t["secondary"], t["surface"]),
              ("label on card", t["label"], card_hover), ("secondary on card", t["secondary"], card_hover),
-             ("on_accent", t["on_accent"], t["accent"])]
+             ("on_accent", t["on_accent"], t["accent"]), ("name field", t["label"], field),
+             ("reset button", t["accent_text"], t["surface"]), ("name error", t["danger"], t["surface"])]
     failures = [f"{name}: {contrast(fg, bg):.2f}" for name, fg, bg in pairs if contrast(fg, bg) < 4.5]
     assert not failures, failures
 
@@ -301,7 +305,8 @@ def test_keyboard_stays_in_settings_bar(shell):
     s.window.activateWindow()
     panel = s.window.settings_panel
     chain = panel.focus_chain()
-    assert len(chain) == 1 + len(DESIGNS) + 3  # close, every card, three appearance buttons
+    # close, every card, three appearance buttons, the name field (Reset only shows once it's changed)
+    assert len(chain) == 1 + len(DESIGNS) + 3 + 1
     chain[0].setFocus()
     settle()
     seen = []
@@ -317,3 +322,47 @@ def test_keyboard_stays_in_settings_bar(shell):
     QTest.keyClick(fluent_card, Qt.Key_Space)
     settle()
     assert isinstance(s.window, DESIGNS[3]) and s.window.settings_open
+
+
+def test_output_name_setting(shell, pdfs):
+    from PySide6.QtTest import QTest
+
+    s = shell(3)  # Fluent says what copies are called under its drop area
+    window = s.window
+    caption = [label for label, _ in window._naming][0]
+    assert "name-clean.pdf" in caption.text()
+    window.open_settings(animate=False)
+    panel = window.settings_panel
+    assert panel.name_field.text() == "{name}-clean"
+    assert panel.name_reset.isHidden()
+
+    panel.name_field.clear()
+    QTest.keyClicks(panel.name_field, "Brinn - {name}")
+    assert Settings().output_name == "Brinn - {name}"
+    assert s.controller.name_template == "Brinn - {name}"
+    assert "Brinn - name.pdf" in caption.text()  # the theme's wording follows
+    assert panel.name_example.text() == "For example: Brinn - Algebra homework.pdf"
+    assert not panel.name_reset.isHidden()
+    assert panel.name_reset in panel.focus_chain()
+
+    panel.name_field.clear()
+    QTest.keyClicks(panel.name_field, "cleaned?")  # no {name}, and a ? Windows won't allow
+    assert not panel.name_error.isHidden() and panel.name_example.isHidden()
+    assert panel.name_error.text() == "Put {name} where the original file name should go."
+    assert Settings().output_name == "Brinn - {name}"  # the last good name is kept
+    assert panel.name_field.property("error") is True
+
+    window.add_paths(pdfs)
+    run_and_wait(s.controller)
+    assert pdfs[0].with_name("Brinn - Algebra.pdf").exists()
+
+    panel.name_reset.click()
+    assert panel.name_field.text() == "{name}-clean" and Settings().output_name == "{name}-clean"
+    assert panel.name_error.isHidden() and panel.name_reset.isHidden()
+
+
+def test_saved_output_name_is_used_at_launch(shell, tmp_path):
+    Settings().output_name = "{name} (clean)"
+    s = shell(0)
+    assert s.controller.name_template == "{name} (clean)"
+    assert s.controller.example_name() == "name (clean).pdf"

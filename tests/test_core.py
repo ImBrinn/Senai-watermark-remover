@@ -5,7 +5,7 @@ from pypdf import PdfReader
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from senai_remover import DEFAULT_PATTERNS, clean_pdf, default_output_path
-from senai_remover.core import _FontDecoder
+from senai_remover.core import _FontDecoder, is_output_name, name_problem, output_name
 
 from conftest import FIXTURE
 
@@ -35,7 +35,8 @@ def test_everything_else_is_untouched(tmp_path):
 
     for number, (before, after) in enumerate(zip(page_texts(FIXTURE), page_texts(out)), start=1):
         branding = glyphs("senai.uk") + (glyphs("SenAI Maths") if number == 1 else Counter())
-        assert glyphs(after) == glyphs(before) - branding
+        title = glyphs("Brinns autocompleter") if number == 1 else Counter()
+        assert glyphs(after) == glyphs(before) - branding + title
         assert "The Senate of senators agrees" in after
         assert str(number) in after  # page number stays
 
@@ -115,7 +116,7 @@ def test_links_and_metadata(make_pdf, tmp_path):
     assert (0, "/Title: SenAI Maths") in result.removed
     reader = PdfReader(out)
     assert not reader.pages[0].get("/Annots")
-    assert reader.metadata.get("/Title") is None
+    assert reader.metadata.get("/Title") == "input"  # the file's name, not SenAI's
     assert reader.metadata.get("/Author") == "Student"
 
 
@@ -142,6 +143,56 @@ def test_tounicode_cmap_parsing():
 
 def test_default_output_path(tmp_path):
     source = tmp_path / "hw.pdf"
-    assert default_output_path(source) == tmp_path / "hw_clean.pdf"
+    assert default_output_path(source) == tmp_path / "hw-clean.pdf"
     assert default_output_path(source, tmp_path / "out") == tmp_path / "out" / "hw.pdf"
     assert default_output_path(source, tmp_path / "out", "_x") == tmp_path / "out" / "hw_x.pdf"
+
+
+def test_title_takes_the_place_of_senais(tmp_path):
+    out = tmp_path / "out.pdf"
+    result = clean_pdf(FIXTURE, out)
+    assert result.title == "Brinns autocompleter"
+    first = page_texts(out)[0]
+    assert first.lstrip().startswith("Brinns autocompleter")
+    assert "Brinns" not in "".join(page_texts(out)[1:])  # only ever on page 1
+
+    clean_pdf(FIXTURE, out, title="Week 7 answers")
+    assert page_texts(out)[0].lstrip().startswith("Week 7 answers")
+    for no_title in (None, ""):
+        assert clean_pdf(FIXTURE, out, title=no_title).title is None
+        assert "Brinns" not in page_texts(out)[0]
+
+
+def test_title_is_drawn_like_the_old_one(tmp_path):
+    from senai_remover.core import _page_fonts, _title_run
+
+    page = PdfReader(FIXTURE).pages[0]
+    run, old = _title_run(page.get_contents().operations, _page_fonts(page), {}, "Brinns autocompleter")
+    assert (round(run.x), round(run.y)) == (round(old.x), round(old.y))  # where SenAI's started
+    assert run.font == "Helvetica-Bold"  # SenAI's title is Liberation Sans Bold
+    assert 15 < run.size < 18 and run.data == b"Brinns autocompleter"
+
+
+def test_no_title_added_without_senais(make_pdf, tmp_path):
+    source = make_pdf(b"BT /F1 12 Tf 72 700 Td (Answer: 42) Tj ET")
+    result = clean_pdf(source, tmp_path / "out.pdf")
+    assert result.title is None
+    assert "Brinns" not in page_texts(tmp_path / "out.pdf")[0]
+
+
+def test_output_names():
+    assert output_name("Week 3.pdf") == "Week 3-clean.pdf"
+    assert output_name("Week 3.pdf", "Brinn - {name}") == "Brinn - Week 3.pdf"
+    assert output_name("a/b/hw.PDF", "{name} (done)") == "hw (done).PDF"
+
+    assert name_problem("{name}-clean") is None
+    assert name_problem("{name}") is None
+    assert name_problem("") == "Type a name for the cleaned copies, using {name} for the original name."
+    assert name_problem("clean") == "Put {name} where the original file name should go."
+    assert name_problem("{name}?") == "File names can't contain ?"
+    assert name_problem("{name}.") == "File names can't end with a full stop."
+
+    assert is_output_name("hw-clean") and is_output_name("hw_clean")  # new and old style
+    assert not is_output_name("hw") and not is_output_name("clean")
+    assert is_output_name("Brinn - hw", "Brinn - {name}")
+    assert not is_output_name("hw", "{name}")

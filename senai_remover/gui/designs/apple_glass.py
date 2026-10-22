@@ -502,9 +502,10 @@ class AppleGlassWindow(BaseWindow):
         self.stack = QStackedWidget()
         choose = QPushButton(L.choose_files)
         bind(choose, self.act_add_files)
-        inner = EmptyState(pixmap("upload", t["accent_text"], 40, 1.75), "Drop PDFs Here",
-                           "Or choose files to clean. Each cleaned copy is saved as name_clean.pdf; "
-                           "the originals stay unchanged.", choose, width=360)
+        inner = EmptyState(pixmap("upload", t["accent_text"], 40, 1.75), "Drop PDFs Here", "", choose,
+                           width=360)
+        self.naming(inner.body, "Or choose files to clean. Each cleaned copy is saved as {example}; "
+                                "the originals stay unchanged.")
         self.well = DropWell(t, inner)
         empty_page = QWidget()
         empty_layout = QVBoxLayout(empty_page)

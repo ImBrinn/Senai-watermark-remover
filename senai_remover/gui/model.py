@@ -17,9 +17,7 @@ from typing import Iterable, Optional
 from pypdf.errors import FileNotDecryptedError, PyPdfError
 
 from ..cli import find_pdfs
-from ..core import clean_pdf
-
-SUFFIX = "_clean"
+from ..core import DEFAULT_NAME, clean_pdf, output_name
 
 
 class Status(Enum):
@@ -35,6 +33,7 @@ class FileJob:
     source: Path
     status: Status = Status.READY
     removed: int = 0
+    fixed: int = 0  # typesetting faults put right
     output: Optional[Path] = None
     # One line for people, plus the technical detail for a tooltip.
     message: str = ""
@@ -54,10 +53,12 @@ class FileJob:
         if self.status is Status.WORKING:
             return "Cleaning…", ""
         if self.status is Status.CLEANED:
-            extra = f"{self.removed} removed"
+            parts = [f"{self.removed} removed"] if self.removed or not self.fixed else []
+            if self.fixed:
+                parts.append(f"{self.fixed} fixed")
             if self.warnings:
-                extra += f" · {plural(len(self.warnings), 'warning')}"
-            return "Cleaned", extra
+                parts.append(plural(len(self.warnings), "warning"))
+            return "Cleaned", " · ".join(parts)
         if self.status is Status.UNCHANGED:
             return "Nothing to remove", ""
         if self.status is Status.FAILED:
@@ -114,6 +115,8 @@ class Session:
         self.jobs: list[FileJob] = []
         # None means next to each original.
         self.output_dir: Optional[Path] = None
+        # What cleaned copies are called; {name} is the original name.
+        self.name_template = DEFAULT_NAME
 
     def add(self, paths: Iterable[Path]) -> AddResult:
         result = AddResult()
@@ -121,7 +124,7 @@ class Session:
         for path in paths:
             path = Path(path)
             if path.is_dir():
-                candidates = list(find_pdfs([path], skip_suffix=SUFFIX))
+                candidates = list(find_pdfs([path], self.name_template))
             elif path.is_file() and path.suffix.lower() == ".pdf":
                 candidates = [path]
             else:
@@ -150,16 +153,16 @@ class Session:
     def plan(self) -> list[tuple[FileJob, Path]]:
         """Each job with the path its cleaned copy will be written to.
 
-        Copies are always named ``name_clean.pdf`` so an original, or an
-        unrelated file in the chosen folder, is never overwritten. Two
-        files with the same name going to one folder get " (2)", " (3)".
+        Copies are named by ``name_template`` (``name-clean.pdf`` unless
+        changed in Settings). An original is never overwritten: a copy that
+        would take its name, or another copy's, gets " (2)", " (3)" added.
         """
         sources = {_key(job.source) for job in self.jobs}
         taken: set[str] = set()
         planned = []
         for job in self.jobs:
             folder = self.output_dir or job.folder
-            stem = f"{job.source.stem}{SUFFIX}"
+            stem = Path(output_name(job.source, self.name_template)).stem
             target = folder / f"{stem}.pdf"
             n = 2
             while _key(target) in taken or _key(target) in sources:
@@ -183,15 +186,16 @@ def run_job(job: FileJob, target: Path) -> None:
         result = clean_pdf(job.source, target)
     except Exception as exc:  # shown on the file's row
         job.status = Status.FAILED
-        job.removed = 0
+        job.removed = job.fixed = 0
         job.message, job.detail = friendly_error(exc, job.source, target)
         return
     job.output = target
     job.removed = len(result.removed)
+    job.fixed = len(result.repaired)
     job.warnings = list(result.warnings)
     job.detail = "\n".join(result.warnings)
-    job.status = Status.CLEANED if result.changed else Status.UNCHANGED
-    if not result.changed:
+    job.status = Status.CLEANED if result.changed or result.repaired else Status.UNCHANGED
+    if job.status is Status.UNCHANGED:
         job.message = "No SenAI title or footer found. An unchanged copy was saved."
 
 

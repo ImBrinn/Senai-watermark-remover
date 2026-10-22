@@ -1,6 +1,6 @@
-"""Remove the SenAI branding (title and senai.uk footer) from PDFs."""
+"""Remove the SenAI branding from PDFs, put your own title in its place, and fix SenAI's typesetting."""
 
 from .core import DEFAULT_PATTERNS, CleanResult, clean_pdf, default_output_path
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 __all__ = ["DEFAULT_PATTERNS", "CleanResult", "clean_pdf", "default_output_path", "__version__"]

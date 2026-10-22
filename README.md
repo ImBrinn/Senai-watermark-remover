@@ -5,8 +5,8 @@
 <h1 align="center">SenAI Watermark Remover</h1>
 
 <p align="center">
-  <strong>Clean copies of your SenAI Maths PDFs, without the “SenAI Maths” title or the senai.uk footer.</strong><br>
-  Drop your PDFs in, press one button, and get clean copies. Everything else stays exactly as it was.
+  <strong>Clean copies of your SenAI Maths PDFs: your own title instead of “SenAI Maths”, no senai.uk footer, and SenAI’s broken symbols and squashed sentences fixed.</strong><br>
+  Drop your PDFs in, press one button, and get clean copies. Your answers and working stay exactly as they were.
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@
 - [Themes](#themes)
 - [Settings](#settings)
 - [Keyboard shortcuts](#keyboard-shortcuts)
-- [What gets removed](#what-gets-removed)
+- [What changes](#what-changes)
 - [Troubleshooting](#troubleshooting)
 - [Command line](#command-line)
 - [How it works](#how-it-works)
@@ -51,13 +51,14 @@
 
 ## Highlights
 
-- **Removes only the branding.** The “SenAI Maths” title and the senai.uk footer are deleted from the PDF itself, not hidden under a white box. Answers, working, diagrams and page numbers are untouched.
-- **Never touches your originals.** Cleaned copies are saved as `name_clean.pdf`, next to the originals or in a folder you choose.
+- **Your title, not SenAI’s.** “SenAI Maths” at the top of page 1 becomes **Brinns autocompleter**, in the same place, size and style. The senai.uk footer is deleted from the PDF itself, not hidden under a white box.
+- **Fixes SenAI’s typesetting.** Empty boxes where SenAI’s PDFs lose a symbol become proper degree signs (180°), multiplication dots (2 · 3) and arrows (⇒), and sentences printed with no spaces (“Anisoscelestriangle…”) are set again with their spaces.
+- **Never touches your originals.** Cleaned copies are saved as `name-clean.pdf`, next to the originals or in a folder you choose. You can change the name in Settings.
 - **Drag and drop.** Drop single PDFs or a whole folder onto the window.
 - **Clear results.** Every file gets its own result and, when something goes wrong, a plain-language reason.
 - **Four themes.** Apple Classic, Apple Liquid Glass, Exercise Book and Windows 11 Fluent, each in light and dark.
 - **Private.** Everything runs on your computer. Your files are never uploaded anywhere.
-- **No install.** One `.exe`, about 38 MB.
+- **No install.** One `.exe`, about 42 MB.
 
 ## Download
 
@@ -73,10 +74,10 @@ Older versions are on the [releases page](https://github.com/ImBrinn/Senai-water
 |---|---|
 | **1. Add your PDFs** | Drag PDFs or a whole folder onto the window, or use **Add Files…** / **Add Folder…**. |
 | **2. Remove the watermarks** | Click **Remove Watermarks** or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. |
-| **3. Check each file** | Each row shows its result: **Cleaned · 9 removed**, **Nothing to remove**, or **Couldn’t clean** with the reason. |
+| **3. Check each file** | Each row shows its result: **Cleaned · 9 removed · 12 fixed**, **Nothing to remove**, or **Couldn’t clean** with the reason. |
 | **4. Open the results** | **Show in Folder** opens where the cleaned copies were saved. |
 
-Cleaned copies are named `name_clean.pdf`. If two files with the same name go to one folder, the second becomes `name_clean (2).pdf`, then ` (3)`, and so on, so nothing is overwritten.
+Cleaned copies are named `name-clean.pdf` unless you choose another name in [Settings](#settings). If two files with the same name go to one folder, the second becomes `name-clean (2).pdf`, then ` (3)`, and so on, so nothing is overwritten.
 
 ## Themes
 
@@ -127,13 +128,14 @@ Open Settings with the gear button in any theme, from the menus, or with <kbd>Ct
 
 - **Theme**: the four themes as preview cards. Click one to switch instantly.
 - **Appearance**: **Match system**, **Light** or **Dark**.
+- **Cleaned copies**: what the cleaned copies are called. `{name}` stands for the original file’s name, so the default `{name}-clean` turns `Week 3.pdf` into `Week 3-clean.pdf`. Try `{name} (Brinn)` or `Brinn - {name}`. An example updates as you type, and a name Windows wouldn’t allow is pointed out straight away.
 
 Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Remover.ini`.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the four theme preview cards and the Appearance choice">
+    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the four theme preview cards, the Appearance choice and the name for cleaned copies">
   </picture>
 </p>
 
@@ -151,14 +153,30 @@ Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Rem
 
 In **Apple Liquid Glass**, tap <kbd>Alt</kbd> to show the menu bar.
 
-## What gets removed
+## What changes
 
-| Removed | Kept exactly as it was |
+<p align="center">
+  <img src="docs/screenshots/before-after.png" width="820" alt="A SenAI page before and after cleaning. Before: the title SenAI Maths, gaps where degree signs, a multiplication dot and an arrow should be, and two sentences in italic with no spaces. After: the title Brinns autocompleter, 180°, 2 · 3 and the arrow drawn, and the sentences set normally with spaces.">
+</p>
+
+| Changed | Kept exactly as it was |
 |---|---|
-| The **“SenAI Maths”** title on page 1 | Questions, answers and working |
-| The **senai.uk** footer on every page | Diagrams and images |
-| Links pointing to senai.uk | Page numbers |
-| Document metadata that mentions SenAI | Your original file, which is never changed |
+| The **“SenAI Maths”** title becomes **Brinns autocompleter**, in the same place, size and style | Questions, answers and working |
+| The **senai.uk** footer on every page is removed | Diagrams and images |
+| Links to senai.uk and metadata that mentions SenAI are removed | Page numbers |
+| **Empty boxes** become the symbols SenAI lost: degree signs, multiplication dots and the ⇒ arrow | Maths that SenAI set correctly |
+| **Sentences with no spaces** are set again with their spaces, in the page’s own font | Your original file, which is never changed |
+| The document title in your PDF viewer is the file’s name instead of “about:blank” | |
+
+Nothing else is added: the title is the only new text on the page.
+
+<details>
+<summary><strong>How are the spaces put back?</strong></summary>
+
+<br>
+
+SenAI sometimes writes a sentence as maths, so every letter is printed on its own and the spaces are lost. The app reads the letters back, splits them into English words using a list of about 126,000 words ordered by how common they are, and only rewrites the line if every piece is a real word. A line it can’t read with confidence is left exactly as it was. The new line uses the page’s own serif font, so it matches the text around it.
+</details>
 
 ## Troubleshooting
 
@@ -171,7 +189,7 @@ The app isn’t code-signed, so SmartScreen warns the first time. Choose **More 
 </details>
 
 <details>
-<summary><strong>“Couldn’t save name_clean.pdf. If it’s open in a PDF viewer, close it and try again.”</strong></summary>
+<summary><strong>“Couldn’t save name-clean.pdf. If it’s open in a PDF viewer, close it and try again.”</strong></summary>
 
 <br>
 
@@ -183,7 +201,7 @@ A cleaned copy from an earlier run is still open in a PDF viewer, and Windows wo
 
 <br>
 
-No SenAI title or footer was found in that file. It may already be clean, or it may not come from SenAI. An unchanged copy is still saved, so you always get a `_clean.pdf`.
+No SenAI title or footer was found in that file, and nothing needed fixing. It may already be clean, or it may not come from SenAI. An unchanged copy is still saved, so you always get a `-clean.pdf`.
 </details>
 
 <details>
@@ -217,11 +235,13 @@ The command line needs only Python 3.9+ and [pypdf](https://pypi.org/project/pyp
 ```bash
 pip install .
 
-senai-remover homework.pdf                 # -> homework_clean.pdf
+senai-remover homework.pdf                 # -> homework-clean.pdf
 senai-remover ~/Downloads/senai            # every PDF in a folder
 senai-remover *.pdf -o cleaned/            # into another folder, keeping the same names
 senai-remover homework.pdf --in-place      # overwrite the original
-senai-remover homework.pdf --suffix _nobrand
+senai-remover homework.pdf --name "Brinn - {name}"    # -> Brinn - homework.pdf
+senai-remover homework.pdf --title "Week 7 answers"   # a different title ("" for none)
+senai-remover homework.pdf --no-repair     # leave SenAI's typesetting as it is
 senai-remover --version
 ```
 
@@ -253,13 +273,17 @@ flowchart LR
     D -- yes --> F{Would deleting it move<br/>other text on that line?}
     F -- no --> G[Delete the text-drawing<br/>operators for those glyphs]
     F -- yes --> H[Hide that run instead<br/>text render mode 3]
-    G --> I[Also remove senai.uk links<br/>and matching metadata]
-    H --> I
-    E --> I
-    I --> J[Save name_clean.pdf]
+    G --> T[Draw the new title where<br/>SenAI Maths started]
+    H --> T
+    E --> R
+    T --> R[Repair the typesetting]
+    R --> I[Also remove senai.uk links<br/>and matching metadata]
+    I --> J[Save name-clean.pdf]
 ```
 
 Only the text-drawing operators (`Tj`, `TJ`, `'` and `"`) that draw the branding are removed. Every other operator on the page is kept.
+
+Then the typesetting repairs. SenAI sets maths with the Liberation fonts, which lack some symbols, so Chrome drew glyph 0 (an empty box) instead. Every glyph on the page is located, with its font, size and position. A box is worked out from its surroundings: a small raised one after a number is a degree sign, one spaced like a binary operator is a dot, and one spaced like a relation is the implies arrow. Chrome’s own ActualText hint is used when it left one. The box is taken out without moving anything else on the line, and the symbol is drawn in its place in the same font family, from another font in the file, or from a standard PDF font. Sentences that lost their spaces are split back into words and set again in the page’s upright serif.
 
 ## Accessibility
 
@@ -282,14 +306,14 @@ python tools/screenshots.py shots/         # renders every theme, light and dark
 python tools/make_icon.py                  # redraws the app icon (needs Pillow)
 ```
 
-The tests cover the PDF cleaner, the command line and the app’s file model. They also drive every theme offscreen, covering:
+The tests cover the PDF cleaner, the typesetting repairs, the command line and the app’s file model. They also drive every theme offscreen, covering:
 
 - adding files and drag and drop
 - cleaning and keyboard shortcuts
 - switching themes
 - contrast checks
 
-`tests/fixtures/senai_sample.pdf` is a stand-in for a real SenAI export. `tests/fixtures/make_sample.cjs` makes it with the same Chrome/Skia pipeline (it needs Node and Playwright).
+`tests/fixtures/senai_sample.pdf` is a stand-in for a real SenAI export, and `tests/fixtures/maths_sample.pdf` reproduces SenAI’s typesetting faults: Chrome printing MathML with only the Liberation fonts. `make_sample.cjs` and `make_maths_sample.cjs`, next to them, make both with the same Chrome/Skia pipeline (they need Node and Playwright).
 </details>
 
 <details>
@@ -331,20 +355,24 @@ The repository is set up as a Claude Code project:
 
 ```text
 senai_remover/
-├── core.py              PDF cleaning
+├── core.py              PDF cleaning, the new title, output names
+├── repair.py            fixing SenAI's missing symbols and spaces
+├── pdftext.py           finding every glyph on a page; removing and drawing text
+├── _words.py            English word list (generated by tools/make_words.py)
+├── _metrics.py          standard PDF font widths (generated by tools/make_metrics.py)
 ├── cli.py               command line
 └── gui/
     ├── app.py           start-up and theme switching
     ├── controller.py    file list model and background cleaning
     ├── model.py         file statuses, output names, messages (no Qt)
-    ├── settings.py      saved theme and appearance
+    ├── settings.py      saved theme, appearance and output name
     ├── settings_panel.py
     ├── theme.py         fonts, icons, colour maths, system settings
     ├── widgets.py       shared widgets
     ├── designs/         base.py plus one file per theme
     └── assets/          fonts, icons, theme previews, app icon
-tests/                   pytest suite and the sample PDF
-tools/                   screenshots and icon generator
+tests/                   pytest suite and the sample PDFs
+tools/                   screenshots, icon, word list and font width generators
 docs/screenshots/        README images
 .github/workflows/       ci.yml and release.yml
 CLAUDE.md, .claude/      Claude Code project: context, settings, hook, skills
@@ -357,5 +385,6 @@ CLAUDE.md, .claude/      Claude Code project: context, settings, hook, skills
 - [Inter](https://rsms.me/inter/) typeface (SIL Open Font License)
 - [Lucide](https://lucide.dev/) icons (ISC licence)
 - [pypdf](https://pypi.org/project/pypdf/) (BSD)
+- The English word list from [wordninja](https://github.com/keredson/wordninja) (MIT), and standard PDF font widths from Adobe’s Core 14 AFM files
 
 The licence texts for Inter and Lucide are included in [`senai_remover/gui/assets/`](senai_remover/gui/assets/).

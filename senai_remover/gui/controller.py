@@ -19,6 +19,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QDesktopServices
 
+from ..core import output_name
 from .model import AddResult, FileJob, RunSummary, Session, Status, run_job, summarize
 
 JOB_ROLE = Qt.UserRole + 1
@@ -80,6 +81,7 @@ class Controller(QObject):
     progress = Signal(int, int)  # files done, total
     finished = Signal(object)  # RunSummary
     output_changed = Signal()
+    name_changed = Signal()
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -135,6 +137,20 @@ class Controller(QObject):
     @property
     def output_dir(self) -> Optional[Path]:
         return self.session.output_dir
+
+    def set_name_template(self, template: str) -> None:
+        """Name cleaned copies by ``template`` ({name} is the original name)."""
+        if template != self.session.name_template:
+            self.session.name_template = template
+            self.name_changed.emit()
+
+    @property
+    def name_template(self) -> str:
+        return self.session.name_template
+
+    def example_name(self, original: str = "name") -> str:
+        """What a file called ``original`` would be saved as, e.g. "name-clean.pdf"."""
+        return output_name(f"{original}.pdf", self.session.name_template)
 
     # Cleaning ----------------------------------------------------------------
 
