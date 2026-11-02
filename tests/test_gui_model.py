@@ -144,6 +144,28 @@ def test_wording():
     assert AddResult(added=2).text() == ""
 
 
+def test_results_do_not_repeat_writing_from_the_pdf(make_pdf, tmp_path):
+    word = "zqxvplum"
+    source = make_pdf(
+        (
+            "BT /F1 24 Tf 72 720 Td (SenAI Maths) Tj ET\n"
+            f"BT /F1 12 Tf 72 660 Td ({word} stays on the page) Tj ET\n"
+            "BT /F1 9 Tf 72 30 Td (senai.uk) Tj ET\n"
+        ).encode(),
+        name="homework.pdf",
+        link=f"https://senai.uk/{word}",
+        metadata={"/Title": f"{word} SenAI Maths", "/Author": word},
+    )
+    job = FileJob(source)
+    run_job(job, tmp_path / "homework-clean.pdf")
+    shown = " ".join([
+        job.message, job.detail, changes_text([job]),
+        " ".join(job.status_text()), " ".join(job.fixes),
+    ])
+    assert word not in shown
+    assert job.status is Status.CLEANED
+
+
 def test_changes_text_names_repairs_and_not_the_writing():
     job = FileJob(Path("a.pdf"))
     job.status = Status.CLEANED
