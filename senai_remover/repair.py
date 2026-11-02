@@ -177,7 +177,8 @@ def _draw_symbol(g: Glyph, char: str, found: list[Glyph], faces: _Faces):
         left, right = _neighbours(g, found)
         lo = left.right if left else g.x
         hi = right.x if right else g.right
-        return g, [Run(font, g.size, (lo + hi) / 2 - width * g.size / 2, g.y, data, g.fill)]
+        size, x = _place_relation(lo, hi, g.size, width, both=left is not None and right is not None)
+        return g, [Run(font, size, x, g.y, data, g.fill)]
     return g, [Run(font, g.size, g.x + (g.width - width * g.size) / 2, g.y, data, g.fill)]
 
 
@@ -198,27 +199,67 @@ def _base_of_superscript(g: Glyph, found: list[Glyph]) -> Optional[Glyph]:
 
 
 def _degree(g: Glyph, base: Glyph, found: list[Glyph], faces: _Faces) -> Optional[Run]:
-    """A degree sign after ``base``, its top level with the top of the digits.
+    """A degree sign in the empty box Chrome drew for it.
 
-    It is drawn a little smaller than the text if that's what keeps it clear
-    of whatever follows, usually a full stop.
+    That box is already a small raised mark. Drawing a full-size sign on the
+    digit baseline instead pulls the superscript down onto the line: a
+    fraction such as 180°/3 looks flat, and the sign closes the gap before
+    a minus, an equals or a full stop.
     """
     face = faces.find("°", base.font)
     if face is None:
         return None
-    font, data, _ = face
-    size = base.size
-    after = [c for c in found if c is not g and c is not base and abs(c.y - base.y) < 0.2 * size
-             and c.x >= base.right - 0.05 * size]
-    limit = min((c.x for c in after), default=math.inf)
-    start = base.right + 0.03 * size
-    # A degree sign's ring spans about 0.06 to 0.34 em across and 0.39 to
-    # 0.68 em up; a following full stop has about 0.07 em of side bearing.
-    room = limit + 0.04 * size - start
-    scale = max(0.7, min(1.0, room / (0.34 * size))) if limit < math.inf else 1.0
-    deg = size * scale
-    rise = 0.676 * (size - deg)
-    return Run(font, deg, start - 0.057 * deg, base.y + rise, data, g.fill)
+    font, data, em = face
+    size = g.size
+    advance = em * size
+    # A little of the digit's side bearing may sit under the box. Don't start
+    # further left than that, and don't grow past the box Chrome measured.
+    floor_x = base.right - 0.08 * base.size
+    ceiling = _next_obstacle(g, base, found)
+    if ceiling < math.inf:
+        limit = ceiling - 0.15
+        span = limit - floor_x
+        if span > 0 and advance > span:
+            size = g.size * max(0.55, span / advance)
+            advance = em * size
+    x = g.x + (g.width - advance) / 2
+    if ceiling < math.inf and x + advance > ceiling - 0.15:
+        x = ceiling - 0.15 - advance
+    if x < floor_x:
+        x = floor_x
+    return Run(font, size, x, g.y, data, g.fill)
+
+
+def _next_obstacle(g: Glyph, base: Glyph, found: list[Glyph]) -> float:
+    """The next glyph on the superscript line or the digit line.
+
+    A fraction bar or a denominator sits on its own baseline, so it is not
+    an obstacle: the degree stays above the numerator.
+    """
+    xs = []
+    for c in found:
+        if c is g or c is base or c.x <= g.x + 0.15 * g.size:
+            continue
+        on_mark = abs(c.y - g.y) <= 0.35 * g.size
+        on_base = abs(c.y - base.y) <= 0.25 * base.size
+        if on_mark or on_base:
+            xs.append(c.x)
+    return min(xs) if xs else math.inf
+
+
+def _place_relation(lo: float, hi: float, size: float, em_width: float, both: bool) -> tuple[float, float]:
+    """(size, x) for a relation centred between ``lo`` and ``hi``.
+
+    When both neighbours are known and the natural glyph is wider than the
+    gap, it is drawn smaller so it doesn't run into them. A gap it already
+    fits is left exactly as it was.
+    """
+    advance = em_width * size
+    gap = hi - lo
+    if both and gap > 0 and advance > gap - 0.3:
+        size = size * max(0.6, (gap - 0.3) / advance)
+        advance = em_width * size
+    return size, (lo + hi) / 2 - advance / 2
 
 
 def _operator_gap(g: Glyph, found: list[Glyph]) -> Optional[float]:

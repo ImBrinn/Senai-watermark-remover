@@ -5,8 +5,8 @@ from pypdf import PdfReader
 
 from senai_remover import clean_pdf
 from senai_remover.core import _page_fonts
-from senai_remover.pdftext import glyphs, remove_glyphs
-from senai_remover.repair import split_words
+from senai_remover.pdftext import Glyph, encode, glyphs, remove_glyphs, text_width
+from senai_remover.repair import _degree, _place_relation, split_words
 
 MATHS = Path(__file__).parent / "fixtures" / "maths_sample.pdf"
 
@@ -34,7 +34,9 @@ def test_boxes_and_squashed_sentences_are_fixed(tmp_path):
     text = PdfReader(out).pages[0].extract_text()
     assert "An isosceles triangle has two equal sides." in text
     assert "Thus there are 2 equal angles." in text
-    assert "sum to 180°" in text
+    # The degree sign is a separate raised glyph, so an extractor may put a
+    # space before it. Visually it still reads as 180°.
+    assert "sumto180°" in text.replace(" ", "")
     assert "6 = 2 · 3" in text
 
 
@@ -79,6 +81,82 @@ def test_removing_a_glyph_leaves_the_rest_in_place(make_pdf):
     after = glyphs(remove_glyphs(ops, [before[1]]), fonts, {})  # take out the "e"
     assert "".join(g.text for g in after) == "Hllo world"
     assert [round(g.x, 3) for g in after] == [round(g.x, 3) for g in before if g is not before[1]]
+
+
+def test_degree_signs_stay_raised_and_clear_of_what_follows(tmp_path):
+    # Chrome draws the empty box as a small raised mark. The replacement has
+    # to stay in that box: a full-size sign on the digit baseline overlaps the
+    # full stop and closes the gap before a minus or an equals.
+    out = tmp_path / "out.pdf"
+    clean_pdf(MATHS, out)
+    found = visible_glyphs(out)
+    degrees = [g for g in found if g.text == "°"]
+    assert len(degrees) == 4
+    for deg in degrees:
+        # The digit it sits on: raised by a fraction of an em, and just to its left.
+        bases = [c for c in found if c.text.isdigit()
+                 and 0.15 * c.size < deg.y - c.y < 0.8 * c.size
+                 and c.right - 0.35 * c.size <= deg.x <= c.right + c.size]
+        assert bases, "a degree sign has no digit under it"
+        base = min(bases, key=lambda c: (deg.y - c.y, abs(deg.x - c.right)))
+        assert deg.y - base.y > 0.2 * base.size
+        assert deg.size < 0.9 * base.size
+        obstacles = [c for c in found if c is not deg and c.x > deg.x + 0.15 * deg.size
+                     and (abs(c.y - deg.y) <= 0.35 * deg.size
+                          or abs(c.y - base.y) <= 0.25 * base.size)]
+        nxt = min(obstacles, key=lambda c: c.x)
+        assert deg.right <= nxt.x + 0.2
+
+
+def _mark(x, y, size, width, text="0"):
+    return Glyph(0, 0, b" ", 0, text, None, "/F1", (size, 0, 0, size, x, y),
+                 width, 0, (0, 0, 0), True, None, True)
+
+
+class _DegreeFace:
+    def find(self, char, like):
+        data = encode("Times-Roman", "°")
+        return "Times-Roman", data, text_width("Times-Roman", data)
+
+
+def test_degree_on_a_numerator_stays_above_the_bar():
+    # 180° over 3: the box sits above the numerator. The denominator is not
+    # an obstacle, and the sign must not drop onto the numerator's baseline.
+    base = _mark(264.0, 437.13, 11.0, 6.1)
+    box = _mark(270.1, 440.9, 7.69, 2.81, "")
+    denom = _mark(260.78, 422.13, 11.0, 6.0, "3")
+    run = _degree(box, base, [base, box, denom], _DegreeFace())
+    assert run is not None
+    assert abs(run.y - box.y) < 0.05
+    assert run.size <= box.size + 0.01
+    assert run.y > base.y + 0.2 * base.size
+
+
+def test_degree_leaves_the_gap_before_an_operator():
+    base = _mark(136.4, 596.9, 10.99, 6.0)          # ends at 142.4
+    box = _mark(142.5, 601.38, 7.69, 2.81, "")
+    minus = _mark(148.18, 596.9, 10.99, 6.3, "−")
+    run = _degree(box, base, [base, box, minus], _DegreeFace())
+    advance = text_width(run.font, run.data) * run.size
+    assert run.y > base.y + 0.2 * base.size
+    assert run.size <= box.size + 0.01
+    assert run.x + advance <= minus.x - 0.1
+
+
+def test_a_relation_keeps_a_gap_it_fits_and_shrinks_one_it_does_not():
+    # Centred in the gap, same size, when the arrow already fits.
+    size, x = _place_relation(114.6, 136.45, 11.25, 0.987, both=True)
+    assert size == 11.25
+    assert abs(x - ((114.6 + 136.45) / 2 - 0.987 * 11.25 / 2)) < 1e-6
+    # Narrower than the arrow: smaller, and still inside the gap.
+    size, x = _place_relation(100.0, 108.0, 11.25, 0.987, both=True)
+    advance = 0.987 * size
+    assert size < 11.25
+    assert x >= 100.0 - 0.05
+    assert x + advance <= 108.0 + 0.05
+    # No neighbours: leave the natural size, even if the box is narrow.
+    size, _ = _place_relation(0.0, 8.0, 11.25, 0.987, both=False)
+    assert size == 11.25
 
 
 def test_split_words():

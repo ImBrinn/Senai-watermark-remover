@@ -3,6 +3,15 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-11-02
+
+### Fixed
+- **Degree signs stay superscripts.** A missing degree sign was redrawn full size on the digit baseline. It now stays in the small raised box Chrome drew, so 180° sits above the line, a fraction such as 180°/3 stays stacked, and the gap before a minus or an equals is left as it was. An arrow that would be wider than the gap around it is drawn smaller so it doesn't run into the neighbours.
+
+### Added
+- **Four more themes:** Midnight (warm paper and gold), Aurora (a violet-to-teal band), Mono (black, white and hairlines) and High Contrast (large type, thick focus). Ctrl+5 to Ctrl+8 switch to them. The original four are unchanged, and the choice is still saved.
+- Each of the new themes shows a written progress line ("Cleaning 2 of 5") and a result banner with an icon and words.
+
 ## [2.2.0] - 2026-10-22
 
 ### Added

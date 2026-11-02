@@ -1,5 +1,5 @@
-"""The settings bar: slides in from the right of any theme, with the four
-themes as preview cards, the appearance choice, the title for page 1 and
+"""The settings bar: slides in from the right of any theme, with every
+theme as a preview card, the appearance choice, the title for page 1 and
 the name for cleaned copies. Picking a theme restyles the window straight
 away and keeps the bar open, so people can compare themes; the file list
 and results carry over."""

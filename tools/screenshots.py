@@ -149,7 +149,8 @@ def main() -> None:
                     print("wrote", out / f"{design.ID}-{appearance}.png")
             for appearance in ("light", "dark"):
                 # Tall enough to show the whole settings bar.
-                render(app, 0, appearance, "listed", files, settings_open=True, size=(880, 900)).save(
+                # Tall enough for eight theme cards plus the fields under them.
+                render(app, 0, appearance, "listed", files, settings_open=True, size=(880, 1280)).save(
                     str(out / f"settings-{appearance}.png"))
                 print("wrote", out / f"settings-{appearance}.png")
             before_after(out)
