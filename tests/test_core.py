@@ -52,7 +52,7 @@ def test_cleaning_twice_finds_nothing(tmp_path):
 def test_can_overwrite_the_source(tmp_path):
     path = tmp_path / "homework.pdf"
     shutil.copy(FIXTURE, path)
-    assert clean_pdf(path, path).changed
+    assert clean_pdf(path, path, overwrite=True).changed
     assert "senai" not in "".join(page_texts(path)).lower()
 
 
@@ -99,7 +99,8 @@ def test_branding_mixed_into_other_text_is_reported_not_mangled(make_pdf, tmp_pa
     result = clean_pdf(source, out)
 
     assert not result.changed
-    assert any("could not cleanly remove 'SenAI'" in w for w in result.warnings)
+    assert any("could not cleanly remove branding" in w for w in result.warnings)
+    assert "SenAI" not in " ".join(result.warnings)
     assert "Made with SenAI tools" in page_texts(out)[0]
 
 
@@ -156,10 +157,10 @@ def test_title_takes_the_place_of_senais(tmp_path):
     assert first.lstrip().startswith("Brinns autocompleter")
     assert "Brinns" not in "".join(page_texts(out)[1:])  # only ever on page 1
 
-    clean_pdf(FIXTURE, out, title="Week 7 answers")
+    clean_pdf(FIXTURE, out, title="Week 7 answers", overwrite=True)
     assert page_texts(out)[0].lstrip().startswith("Week 7 answers")
     for no_title in (None, ""):
-        assert clean_pdf(FIXTURE, out, title=no_title).title is None
+        assert clean_pdf(FIXTURE, out, title=no_title, overwrite=True).title is None
         assert "Brinns" not in page_texts(out)[0]
 
 

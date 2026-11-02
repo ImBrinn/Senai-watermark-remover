@@ -18,7 +18,7 @@ from typing import Iterable, Optional
 from pypdf.errors import FileNotDecryptedError, PyPdfError
 
 from ..cli import find_pdfs
-from ..core import DEFAULT_NAME, DEFAULT_TITLE, clean_pdf, output_name
+from ..core import DEFAULT_NAME, DEFAULT_TITLE, PdfLimitError, clean_pdf, output_name, safe_error
 
 
 class Status(Enum):
@@ -189,13 +189,21 @@ def run_job(job: FileJob, target: Path, title: str = DEFAULT_TITLE) -> None:
     job.output = None
     try:
         result = clean_pdf(job.source, target, title=title)
+    except RecursionError as exc:
+        # A nested file fails this row only. The message is the type, never
+        # text the parser quoted from a page.
+        job.status = Status.FAILED
+        job.removed = job.fixed = 0
+        job.fixes = []
+        job.message, job.detail = friendly_error(exc, job.source, target)
+        return
     except Exception as exc:  # shown on the file's row
         job.status = Status.FAILED
         job.removed = job.fixed = 0
         job.fixes = []
         job.message, job.detail = friendly_error(exc, job.source, target)
         return
-    job.output = target
+    job.output = result.output or target
     job.removed = len(result.removed)
     job.fixed = len(result.repaired)
     job.fixes = [what for _, what in result.repaired]
@@ -221,11 +229,19 @@ def summarize(jobs: Iterable[FileJob]) -> RunSummary:
 
 
 def friendly_error(exc: BaseException, source: Path, target: Path) -> tuple[str, str]:
-    """(what went wrong and what to do, technical detail) for a failed file."""
-    detail = f"{type(exc).__name__}: {exc}"
+    """(what went wrong and what to do, technical detail) for a failed file.
+
+    The detail is the exception type only. Parser errors quote the bytes they
+    tripped over, and that can be someone's work, so the text is not shown.
+    """
+    detail = type(exc).__name__
     filename = getattr(exc, "filename", None)
     about_target = filename is not None and _key(Path(filename)) == _key(target)
 
+    if isinstance(exc, RecursionError):
+        return "This PDF is too deeply nested to open.", detail
+    if isinstance(exc, PdfLimitError):
+        return safe_error(exc), detail
     if isinstance(exc, FileNotDecryptedError) or (
         isinstance(exc, ValueError) and "password" in str(exc).lower()
     ):

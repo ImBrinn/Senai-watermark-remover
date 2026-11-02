@@ -8,7 +8,8 @@ dynamic = ["version"]
 description = "Remove the SenAI branding from PDFs, add your own title, and fix SenAI's typesetting"
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["pypdf>=5.0"]
+# 6.21.4 patches trailer-loop, page-tree memory and clone-cycle issues.
+dependencies = ["pypdf>=6.21.4"]
 
 [project.optional-dependencies]
 # Qt 6.8 is a long-term-support release; 6.9+ needs Windows' own ICU
