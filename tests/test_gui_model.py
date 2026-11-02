@@ -1,5 +1,6 @@
 import errno
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +14,7 @@ from senai_remover.gui.model import (  # noqa: E402
     RunSummary,
     Session,
     Status,
+    changes_text,
     friendly_error,
     plural,
     run_job,
@@ -140,3 +142,15 @@ def test_wording():
     assert RunSummary(failed=1).text() == "1 PDF couldn't be cleaned"
     assert RunSummary().text() == "Nothing to clean"
     assert AddResult(added=2).text() == ""
+
+
+def test_changes_text_names_repairs_and_not_the_writing():
+    job = FileJob(Path("a.pdf"))
+    job.status = Status.CLEANED
+    job.removed = 2
+    job.fixes = ["°", "°", "spaces", "·", "⟹", "⇒"]
+    assert changes_text([job]) == (
+        "2 removed, 2 degree signs, 1 multiplication dot, 2 arrows, 1 sentence spaced"
+    )
+    untouched = FileJob(Path("b.pdf"))
+    assert changes_text([untouched]) == ""

@@ -458,7 +458,7 @@ class StageWindow(BaseWindow):
         action = None
         if summary.outputs:
             action = lambda: self.controller.show_outputs(self.list_view.selected_rows())
-        self.banner.show_message(summary.text() + ".", kind, action)
+        self.banner.show_message(self.result_message(summary), kind, action)
 
     def notify(self, text: str, kind: str = "info") -> None:
         shown = text[:1].upper() + text[1:]

@@ -3,6 +3,17 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-11-02
+
+### Fixed
+- Spacing a run-together sentence keeps a raised number on its digit. A power that starts just past the last character, which rounding often does, is still part of that line, so it isn't left behind when the words are set again.
+
+### Changed
+- Every theme shows a drop card while PDFs are dragged over the window. It fades in, and it stays still when Windows asks for less motion.
+- The result line names the fixes as well as the files: degree signs, multiplication dots, arrows and sentences spaced. Fluent's progress bar says "Cleaning 2 of 5" beside it.
+- Theme cards in Settings show their shortcut, Ctrl+1 to Ctrl+8. The choice is still saved.
+- **Preview page 1** (File menu, or Ctrl+Shift+P) draws the words on the first page before and after cleaning, each one where the PDF put it.
+
 ## [2.3.0] - 2026-11-02
 
 ### Fixed

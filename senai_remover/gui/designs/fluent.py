@@ -115,7 +115,7 @@ def stylesheet(t: dict) -> str:
     return f"""
     QMainWindow, #root {{ background: {t['bg']}; }}
     QWidget {{ color: {t['label']}; }}
-    #subtitle, #caption, #orLabel {{ color: {t['secondary']}; background: transparent; }}
+    #subtitle, #caption, #orLabel, #progressLabel {{ color: {t['secondary']}; background: transparent; }}
     #title {{ background: transparent; }}
     QMenu {{ background: {t['surface']}; border: 1px solid {t['border']}; padding: 4px; }}
     QMenu::item {{ padding: 7px 28px 7px 12px; border-radius: 4px; }}
@@ -480,13 +480,17 @@ class FluentWindow(BaseWindow):
         page.addWidget(self.card, 1)
 
         page.addSpacing(10)
+        progress_row = QHBoxLayout()
+        progress_row.setSpacing(10)
+        self.progress_label = QLabel("", objectName="progressLabel")
+        self.progress_label.setFont(font(12, families=TEXT_FONTS))
         self.progress = QProgressBar()
         self.progress.setTextVisible(False)
-        keep = self.progress.sizePolicy()
-        keep.setRetainSizeWhenHidden(True)
-        self.progress.setSizePolicy(keep)
+        self.progress_label.hide()
         self.progress.hide()
-        page.addWidget(self.progress)
+        progress_row.addWidget(self.progress_label)
+        progress_row.addWidget(self.progress, 1)
+        page.addLayout(progress_row)
         page.addSpacing(12)
 
         footer = QHBoxLayout()
@@ -524,16 +528,23 @@ class FluentWindow(BaseWindow):
 
     def update_view(self) -> None:
         self.stack.setCurrentIndex(1 if self.controller.jobs else 0)
-        self.progress.setVisible(self.controller.running)
+        running = self.controller.running
+        self.progress.setVisible(running)
+        self.progress_label.setVisible(running)
 
     def on_progress(self, done: int, total: int) -> None:
         self._info_closed()
         self.progress.setRange(0, max(total, 1))
         self.progress.setValue(done)
+        words = f"Cleaning {min(done + 1, total)} of {total}" if done < total else "Finishing"
+        self.progress_label.setText(words)
+        self.progress.setAccessibleName(words)
         self.progress.show()
+        self.progress_label.show()
 
     def on_finished(self, summary: RunSummary) -> None:
         self.progress.hide()
+        self.progress_label.hide()
         if summary.failed:
             severity = "warning" if summary.cleaned else "error"
         elif summary.cleaned:
@@ -541,7 +552,7 @@ class FluentWindow(BaseWindow):
         else:
             severity = "info"
         action = (lambda: self.controller.show_outputs(self.list_view.selected_rows())) if summary.outputs else None
-        self._show_info(summary.text() + ".", severity, action)
+        self._show_info(self.result_message(summary), severity, action)
 
     def notify(self, text: str, kind: str = "info") -> None:
         self._show_info(text[:1].upper() + text[1:] + ".", kind if kind in SEVERITY else "info")

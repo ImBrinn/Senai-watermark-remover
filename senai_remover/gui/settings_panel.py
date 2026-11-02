@@ -9,7 +9,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPropertyAnimation, QRect, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QShortcut
+from PySide6.QtGui import (
+    QColor, QFont, QFontMetrics, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen,
+    QPixmap, QShortcut,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -47,18 +50,19 @@ def preview(theme_id: str, dark: bool) -> QPixmap:
 
 
 class ThemeCard(QAbstractButton):
-    def __init__(self, design, image: QPixmap, t: dict, parent=None):
+    def __init__(self, design, image: QPixmap, t: dict, shortcut: str, parent=None):
         super().__init__(parent)
         self.t = t
         self.image = image
         self.name = design.NAME
         self.description = design.DESCRIPTION
+        self.shortcut = shortcut
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setAccessibleName(f"{self.name} theme")
-        self.setAccessibleDescription(self.description)
-        self.setToolTip(self.description)
+        self.setAccessibleDescription(f"{self.description}. Shortcut {self.shortcut}.")
+        self.setToolTip(f"{self.description} ({self.shortcut})")
         self.setFixedSize(self.sizeHint())
         self.name_font = font(13, QFont.DemiBold)
         self.text_font = font(12)
@@ -95,6 +99,16 @@ class ThemeCard(QAbstractButton):
         p.setPen(QPen(QColor(t["border"]), 1))
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(shot, 6, 6)
+
+        # Shortcut, on the page so the name underneath can stay whole.
+        chip = QFontMetrics(self.text_font).horizontalAdvance(self.shortcut) + 14
+        pill = QRectF(shot.left() + 8, shot.top() + 8, chip, 18)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t["surface"]))
+        p.drawRoundedRect(pill, 9, 9)
+        p.setPen(QColor(t["label"]))
+        p.setFont(self.text_font)
+        p.drawText(pill, Qt.AlignCenter, self.shortcut)
 
         if self.isChecked():
             badge = QRectF(shot.right() - 26, shot.top() + 6, 20, 20)
@@ -198,7 +212,7 @@ class SettingsPanel(QFrame):
         self.cards.setExclusive(False)
         shell = window.shell
         for i, design in enumerate(shell.designs):
-            card = ThemeCard(design, preview(design.ID, window.prefs.dark), t)
+            card = ThemeCard(design, preview(design.ID, window.prefs.dark), t, f"Ctrl+{i + 1}")
             card.setChecked(i == window.design_index)
             card.clicked.connect(lambda _=False, i=i, card=card: self._pick_theme(i, card))
             self.cards.addButton(card, i)

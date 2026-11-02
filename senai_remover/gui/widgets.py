@@ -5,12 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import QModelIndex, QRect, QSize, Qt
-from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPalette
+from PySide6.QtCore import QEasingCurve, QModelIndex, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt
+from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
+    QGraphicsOpacityEffect,
     QLabel,
     QListView,
     QPushButton,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from .controller import JOB_ROLE, Controller
 from .model import FileJob, Status
+from .theme import pixmap
 
 
 class Labels:
@@ -294,6 +296,92 @@ def set_palette(widget: QWidget, colors: dict) -> None:
     for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
         palette.setColor(QPalette.Disabled, role, QColor(colors["disabled"]))
     widget.setPalette(palette)
+
+
+class DropVeil(QWidget):
+    """Full-window hint while PDFs are dragged over any theme.
+
+    Mouse events pass through, so the window still receives the drop.
+    With motion off it appears and disappears at once.
+    """
+
+    def __init__(self, window):
+        super().__init__(window.centralWidget())
+        self._window = window
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._effect = QGraphicsOpacityEffect(self)
+        self._effect.setOpacity(0.0)
+        self.setGraphicsEffect(self._effect)
+        self._anim = None
+        self.hide()
+
+    def present(self) -> None:
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.setGeometry(parent.rect())
+        self.raise_()
+        self.show()
+        self._fade(1.0)
+
+    def dismiss(self) -> None:
+        if not self.isVisible():
+            return
+        self._fade(0.0, hide=True)
+
+    def _fade(self, end: float, hide: bool = False) -> None:
+        if self._anim is not None:
+            self._anim.stop()
+            self._anim = None
+        if not self._window.prefs.animations:
+            self._effect.setOpacity(end)
+            if hide:
+                self.hide()
+            return
+        anim = QPropertyAnimation(self._effect, b"opacity", self)
+        anim.setDuration(160)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.setStartValue(self._effect.opacity())
+        anim.setEndValue(end)
+        if hide:
+            anim.finished.connect(self._hide_if_faded)
+        anim.start()
+        self._anim = anim
+
+    def _hide_if_faded(self) -> None:
+        if self._effect.opacity() < 0.05:
+            self.hide()
+
+    def paintEvent(self, event) -> None:
+        t = self._window.t
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.TextAntialiasing)
+        shade = QColor(t["bg"])
+        shade.setAlpha(214)
+        p.fillRect(self.rect(), shade)
+
+        card = QRectF(0, 0, min(440, self.width() - 48), 188)
+        card.moveCenter(QPointF(self.rect().center()))
+        path = QPainterPath()
+        path.addRoundedRect(card, 20, 20)
+        p.fillPath(path, QColor(t["surface"]))
+        p.setPen(QPen(QColor(t["accent"]), 2))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+
+        icon = pixmap("upload", t["accent_text"], 36, 1.75)
+        p.drawPixmap(int(card.center().x() - 18), int(card.top() + 26), icon)
+        p.setPen(QColor(t["label"]))
+        p.setFont(font(20, QFont.DemiBold))
+        p.drawText(QRectF(card.left() + 24, card.top() + 76, card.width() - 48, 30),
+                   Qt.AlignHCenter | Qt.AlignVCenter, "Drop PDFs here")
+        p.setPen(QColor(t["secondary"]))
+        p.setFont(font(13))
+        p.drawText(QRectF(card.left() + 28, card.top() + 112, card.width() - 56, 52),
+                   Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
+                   "Files and folders join the list. Nothing is cleaned until you ask.")
 
 
 def bind(button, action: QAction) -> None:

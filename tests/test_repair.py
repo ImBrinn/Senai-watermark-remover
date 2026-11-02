@@ -6,7 +6,7 @@ from pypdf import PdfReader
 from senai_remover import clean_pdf
 from senai_remover.core import _page_fonts
 from senai_remover.pdftext import Glyph, encode, glyphs, remove_glyphs, text_width
-from senai_remover.repair import _degree, _place_relation, split_words
+from senai_remover.repair import Repairs, _degree, _place_relation, _respace, split_words
 
 MATHS = Path(__file__).parent / "fixtures" / "maths_sample.pdf"
 
@@ -157,6 +157,75 @@ def test_a_relation_keeps_a_gap_it_fits_and_shrinks_one_it_does_not():
     # No neighbours: leave the natural size, even if the box is narrow.
     size, _ = _place_relation(0.0, 8.0, 11.25, 0.987, both=False)
     assert size == 11.25
+
+
+class _Em:
+    def __init__(self, italic, em):
+        self.italic = italic
+        self.bold = False
+        self.family = "Times"
+        self.name = "Times"
+        self._em = em
+
+    def width(self, code):
+        return self._em
+
+    def is_missing(self, code):
+        return False
+
+
+class _Times:
+    def find(self, char, like, italic=None):
+        data = encode("Times-Roman", char)
+        if data is None:
+            return None
+        return "Times-Roman", data, text_width("Times-Roman", data)
+
+
+def test_respacing_keeps_a_raised_power_on_its_digit():
+    # A run-together line with powers, the way SenAI sets "2¹ and 11¹".
+    # Spacing the words must not drop the 1s onto the baseline or glue them
+    # into the numbers beside them.
+    size, y, x = 11.0, 100.0, 40.0
+    chain = []
+
+    def add(text, italic, width):
+        nonlocal x
+        g = _mark(x, y, size, width, text)
+        g.font = _Em(italic, width / size)
+        chain.append(g)
+        x += width
+        return g
+
+    for ch in "Lowestpowers":
+        add(ch, True, 5.0)
+    add(":", False, 3.0)
+    two = add("2", False, 5.5)
+    sup_a = _mark(two.right + 0.15, y + 4.5, 7.7, 3.8, "1")
+    sup_a.font = _Em(False, 3.8 / 7.7)
+    x = sup_a.right + 1.2
+    for ch in "and":
+        add(ch, True, 5.0)
+    add("1", False, 5.5)
+    second = add("1", False, 5.5)
+    # The power starts a hair past the digit, as rounding often leaves it,
+    # and something further right stands in for the rest of the page.
+    sup_b = _mark(second.right + 0.4, y + 4.5, 7.7, 3.8, "1")
+    sup_b.font = _Em(False, 3.8 / 7.7)
+    margin = _mark(420, 20, size, 5, "x")
+    margin.font = _Em(False, 5 / size)
+
+    repairs = Repairs()
+    assert _respace(chain, chain + [sup_a, sup_b, margin], {}, _Times(), repairs)
+    runs = repairs.drawn[0][1]
+    raised = [r for r in runs if r.y > y + 2]
+    assert len(raised) == 2
+    for run in raised:
+        assert abs(run.y - (y + 4.5)) < 0.05
+        assert abs(run.size - 7.7) < 0.05
+    assert raised[1].x - raised[0].x > 15  # one on the 2, one on the 11
+    space = encode("Times-Roman", " ")
+    assert any(space in r.data for r in runs)
 
 
 def test_split_words():

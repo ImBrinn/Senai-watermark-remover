@@ -350,7 +350,9 @@ def _respace(chain: list[Glyph], found: list[Glyph], symbols, faces: _Faces, rep
     size, y = first.size, first.y
     x0, x1 = first.x, chain[-1].right
     members = set(chain)
-    attached = [g for g in found if g not in members and g.right > x0 and g.x < x1
+    # A hair past the last glyph still belongs to it: a power often starts
+    # exactly on the digit's right edge, and rounding can put it just outside.
+    attached = [g for g in found if g not in members and g.right > x0 and g.x < x1 + 0.35 * size
                 and -0.5 * size < g.y - y < 0.9 * size]
     if any(g.size > 0.9 * size for g in attached):
         return False  # something else shares the line (a fraction, another line)
