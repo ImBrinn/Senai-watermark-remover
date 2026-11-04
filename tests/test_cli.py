@@ -37,7 +37,12 @@ def test_folder_skips_earlier_output(tmp_path, capsys):
 
     assert main([str(tmp_path)]) == 0
     assert "Cleaned 2 of 2 file(s)." in capsys.readouterr().out
-    assert sorted(p.name for p in tmp_path.glob("*-clean*")) == ["a-clean.pdf", "b-clean.PDF"]
+    # a-clean.pdf was already there, so the new copy takes the next name
+    # rather than replacing it.
+    assert sorted(p.name for p in tmp_path.glob("*-clean*")) == [
+        "a-clean (2).pdf", "a-clean.pdf", "b-clean.PDF"]
+    assert has_branding(tmp_path / "a-clean.pdf")
+    assert not has_branding(tmp_path / "a-clean (2).pdf")
 
 
 def test_custom_name_and_title(tmp_path, capsys):

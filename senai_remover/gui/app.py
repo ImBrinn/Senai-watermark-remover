@@ -121,7 +121,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         del args[at:at + 2]
     paths = [Path(a) for a in args if Path(a).exists()]
 
-    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    logging.getLogger("pypdf").disabled = True
     if sys.platform.startswith("win"):
         try:  # group the taskbar button under this app's icon, not Python's
             import ctypes

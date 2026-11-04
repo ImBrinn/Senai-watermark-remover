@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import stat
 import sys
 from collections import Counter
 from pathlib import Path
@@ -19,6 +21,11 @@ from .core import (
     default_output_path,
     is_output_name,
     name_problem,
+    report_payload,
+    report_text,
+    safe_error,
+    same_file,
+    scan_pdf,
     title_problem,
 )
 
@@ -28,13 +35,24 @@ def find_pdfs(paths: Iterable[Path], template: str = DEFAULT_NAME) -> Iterator[P
 
     Files that look like earlier cleaned copies (named by ``template``) are
     skipped when scanning a folder, but not when named explicitly.
+
+    A folder reached through a symlink is not opened, and a symlink inside a
+    folder is not followed. Only a regular file (not a device or a socket)
+    is yielded from a folder. A symlink named on its own is still yielded
+    when it points at a file, so a path someone typed is not silently dropped.
     """
     for path in paths:
+        if path.is_symlink() and path.is_dir():
+            continue
         if path.is_dir():
             for child in sorted(path.iterdir()):
-                if child.is_file() and child.suffix.lower() == ".pdf":
-                    if not is_output_name(child.stem, template):
-                        yield child
+                if child.is_symlink() or not child.is_file():
+                    continue
+                info = child.lstat()
+                if not stat.S_ISREG(info.st_mode):
+                    continue
+                if child.suffix.lower() == ".pdf" and not is_output_name(child.stem, template):
+                    yield child
         else:
             yield path
 
@@ -50,9 +68,13 @@ FIXES = {
 
 
 def describe(result: CleanResult) -> str:
-    """One-line summary, e.g. "removed SenAI Maths, senai.uk x8; fixed 43 degree signs"."""
+    """One-line summary, e.g. "removed SenAI Maths, senai.uk x8; fixed 43 degree signs".
+
+    Link addresses and metadata values are left out: a matched footer is
+    branding, but a document title can carry someone's work.
+    """
     parts = []
-    removed = Counter(text for _, text in result.removed)
+    removed = Counter(result.branding_texts())
     if removed:
         parts.append("removed " + ", ".join(t if n == 1 else f"{t} x{n}" for t, n in removed.items()))
     if result.title:
@@ -63,6 +85,15 @@ def describe(result: CleanResult) -> str:
         parts.append("fixed " + ", ".join(f"{fixed[k]} {k[0] if fixed[k] == 1 else k[1]}"
                                           for k in order if fixed[k]))
     return "; ".join(parts)
+
+
+def format_report(results: Sequence[CleanResult], kind: str) -> str:
+    """``text`` or ``json``. Several files become a JSON list; one stays an object."""
+    if kind == "json":
+        payload = [report_payload(result) for result in results]
+        body = payload[0] if len(payload) == 1 else payload
+        return json.dumps(body, indent=2) + "\n"
+    return "\n\n".join(report_text(result) for result in results) + ("\n" if results else "")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -87,12 +118,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="don't fix SenAI's typesetting (empty boxes, missing spaces)")
     parser.add_argument("--pattern", action="append", default=[], metavar="REGEX",
                         help="extra text to remove (case-insensitive regex); may be repeated")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="show what would change, without writing a file")
+    parser.add_argument("--report", choices=("text", "json"),
+                        help="print a change report of kinds and counts (text or json)")
+    parser.add_argument("--report-file", type=Path, metavar="PATH",
+                        help="write that report to this file as well")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
     _replace_unprintable()
 
-    # pypdf logs harmless warnings about the generator's slightly-off xref tables.
-    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    # pypdf's own messages sometimes quote bytes from the file. Silence them
+    # so a log never carries text from a page.
+    logging.getLogger("pypdf").disabled = True
     patterns = [*DEFAULT_PATTERNS, *args.pattern]
     if args.name is not None:
         template = args.name
@@ -108,31 +146,65 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error(f"--title {args.title!r}: {problem}")
 
     failures = cleaned = total = 0
+    reports: list[CleanResult] = []
     for source in find_pdfs(args.paths, template):
         total += 1
-        target = source if args.in_place else default_output_path(source, args.output_dir, template=template)
-        if not args.in_place and target.resolve() == source.resolve():
-            print(f"FAIL {source}: output would overwrite the original (use --in-place)", file=sys.stderr)
-            failures += 1
-            continue
         try:
-            result = clean_pdf(source, target, patterns, title=args.title, repair=not args.no_repair)
-        except Exception as exc:  # report and carry on with the other files
-            print(f"FAIL {source}: {exc}", file=sys.stderr)
+            if args.dry_run:
+                result = scan_pdf(source, patterns, title=args.title, repair=not args.no_repair)
+            else:
+                target = source if args.in_place else default_output_path(
+                    source, args.output_dir, template=template)
+                if not args.in_place and same_file(target, source):
+                    print(f"FAIL {source}: output would overwrite the original (use --in-place)",
+                          file=sys.stderr)
+                    failures += 1
+                    continue
+                result = clean_pdf(source, target, patterns, title=args.title,
+                                   repair=not args.no_repair, overwrite=args.in_place)
+        except RecursionError:
+            # On its own, ahead of Exception, so a nested file can't take the
+            # batch down — and its message is not printed.
+            print(f"FAIL {source}: This PDF is too deeply nested to open.", file=sys.stderr)
             failures += 1
             continue
+        except Exception as exc:  # report and carry on with the other files
+            print(f"FAIL {source}: {safe_error(exc)}", file=sys.stderr)
+            failures += 1
+            continue
+        reports.append(result)
         for warning in result.warnings:
             print(f"WARN {source.name}: {warning}", file=sys.stderr)
+        if args.report:
+            if result.changed or result.repaired:
+                cleaned += 1
+            continue
         if result.changed or result.repaired:
             cleaned += 1
-            print(f"OK   {source} -> {target}  ({describe(result)})")
+            if args.dry_run:
+                print(f"OK   {source}  (dry run: {describe(result)})")
+            else:
+                print(f"OK   {source} -> {result.output}  ({describe(result)})")
+        elif args.dry_run:
+            print(f"--   {source}  (dry run: no SenAI branding found)")
         else:
-            print(f"--   {source} -> {target}  (no SenAI branding found)")
+            print(f"--   {source} -> {result.output}  (no SenAI branding found)")
+
+    if args.report or args.report_file:
+        kind = args.report or ("json" if args.report_file.suffix.lower() == ".json" else "text")
+        text = format_report(reports, kind)
+        if args.report:
+            sys.stdout.write(text)
+        if args.report_file is not None:
+            args.report_file.parent.mkdir(parents=True, exist_ok=True)
+            args.report_file.write_text(text, encoding="utf-8")
 
     if total == 0:
         print("No PDF files found.", file=sys.stderr)
         return 1
-    print(f"Cleaned {cleaned} of {total} file(s).")
+    summary = f"{'Checked' if args.dry_run else 'Cleaned'} {cleaned} of {total} file(s)."
+    # A JSON report has to be the whole of stdout, so the summary goes beside it.
+    print(summary, file=sys.stderr if args.report == "json" else sys.stdout)
     return 1 if failures else 0
 
 
