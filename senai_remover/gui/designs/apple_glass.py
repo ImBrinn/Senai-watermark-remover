@@ -354,6 +354,7 @@ class Toast(Capsule):
         self.icon = QLabel()
         self.icon.setStyleSheet("background: transparent;")
         self.text = QLabel(objectName="toastText")
+        self.text.setWordWrap(True)
         self.text.setMaximumWidth(460)
         self.action = QPushButton(objectName="toastAction")
         self.action.setCursor(Qt.PointingHandCursor)
@@ -595,7 +596,7 @@ class AppleGlassWindow(BaseWindow):
         else:
             kind = ("circle-check", "success")
         action = self.labels.show if summary.outputs else ""
-        self.toast.show_message(summary.text(), *kind, action,
+        self.toast.show_message(self.result_message(summary), *kind, action,
                                 lambda: self.controller.show_outputs(self.list_view.selected_rows()))
         self._place_toast()
 

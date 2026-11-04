@@ -53,11 +53,11 @@
 ## Highlights
 
 - **Your title, not SenAI’s.** “SenAI Maths” at the top of page 1 becomes **Brinns autocompleter**, or a title of your own from Settings, in the same place, size and style. The senai.uk footer is deleted from the PDF itself, not hidden under a white box.
-- **Fixes SenAI’s typesetting.** Empty boxes where SenAI’s PDFs lose a symbol become proper degree signs (180°), multiplication dots (2 · 3) and arrows (⇒), and sentences printed with no spaces (“Anisoscelestriangle…”) are set again with their spaces.
+- **Fixes SenAI’s typesetting.** Empty boxes where SenAI’s PDFs lose a symbol become proper degree signs (180°, still raised), multiplication dots (2 · 3) and arrows (⇒), and sentences printed with no spaces (“Anisoscelestriangle…”) are set again with their spaces. A power such as 2¹ stays raised when the words around it are spaced out.
 - **Never touches your originals.** Cleaned copies are saved as `name-clean.pdf`, next to the originals or in a folder you choose. You can change the name in Settings.
-- **Drag and drop.** Drop single PDFs or a whole folder onto the window.
-- **Clear results.** Every file gets its own result and, when something goes wrong, a plain-language reason.
-- **Four themes.** Apple Classic, Apple Liquid Glass, Exercise Book and Windows 11 Fluent, each in light and dark.
+- **Drag and drop.** Drop single PDFs or a whole folder onto the window. Every theme shows a drop card while they’re over it.
+- **Clear results.** Every file gets its own result and, when something goes wrong, a plain-language reason. After a run, the message names what was fixed (degree signs, dots, arrows, sentences). **Preview page 1** (Ctrl+Shift+P) shows the words before and after, each one where the PDF put it.
+- **Eight themes.** Apple Classic, Apple Liquid Glass, Exercise Book, Windows 11 Fluent, Midnight, Aurora, Mono and High Contrast, each in light and dark.
 - **Private.** Everything runs on your computer. Your files are never uploaded anywhere.
 - **No install.** One `.exe`, about 42 MB.
 
@@ -82,7 +82,7 @@ Cleaned copies are named `name-clean.pdf` unless you choose another name in [Set
 
 ## Themes
 
-Pick a theme in **Settings**, or switch instantly with <kbd>Ctrl</kbd>+<kbd>1</kbd> to <kbd>Ctrl</kbd>+<kbd>4</kbd>. Your file list and results carry over. Every theme comes in light and dark. The screenshots below follow your GitHub appearance.
+Pick a theme in **Settings**, or switch instantly with <kbd>Ctrl</kbd>+<kbd>1</kbd> to <kbd>Ctrl</kbd>+<kbd>8</kbd>. Your file list and results carry over. Every theme comes in light and dark. The screenshots below follow your GitHub appearance.
 
 <table>
   <tr>
@@ -121,13 +121,49 @@ Pick a theme in **Settings**, or switch instantly with <kbd>Ctrl</kbd>+<kbd>1</k
       A native Windows 11 look: a command bar, cards, InfoBar messages and Segoe UI.</p>
     </td>
   </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/midnight-dark.png">
+        <img src="docs/screenshots/midnight-light.png" width="400" alt="Midnight theme: warm paper, a gold rule under the title and a file list">
+      </picture>
+      <p><strong>5 · Midnight</strong><br>
+      Warm paper by day and ink after dark, with a short gold rule. The progress line says “Cleaning 2 of 5”, and the result is an icon plus words.</p>
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/aurora-dark.png">
+        <img src="docs/screenshots/aurora-light.png" width="400" alt="Aurora theme: a violet-to-teal band above a quiet file list">
+      </picture>
+      <p><strong>6 · Aurora</strong><br>
+      A quiet window with a violet-to-teal band along the top. Text sits on solid colours, so it stays readable as the band changes.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/mono-dark.png">
+        <img src="docs/screenshots/mono-light.png" width="400" alt="Mono theme: black and white with hairline rules and square corners">
+      </picture>
+      <p><strong>7 · Mono</strong><br>
+      Black, white and hairline rules. Square corners, no tinted tiles.</p>
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/contrast-dark.png">
+        <img src="docs/screenshots/contrast-light.png" width="400" alt="High Contrast theme: large black type, a yellow selected row and a thick focus ring">
+      </picture>
+      <p><strong>8 · High Contrast</strong><br>
+      Large type, thick borders and a yellow selected row. Every status is an icon plus words, and focus is a 3px ring.</p>
+    </td>
+  </tr>
 </table>
 
 ## Settings
 
 Open Settings with the gear button in any theme, from the menus, or with <kbd>Ctrl</kbd>+<kbd>,</kbd>. A panel slides in from the right with:
 
-- **Theme**: the four themes as preview cards. Click one to switch instantly.
+- **Theme**: all eight themes as preview cards, each marked with its shortcut. Click one to switch instantly. The choice is remembered. The list scrolls if the window is short.
 - **Appearance**: **Match system**, **Light** or **Dark**.
 - **Title**: what goes where “SenAI Maths” was on page 1. It starts as **Brinns autocompleter**. Leave it empty for no title, or press **Reset** to go back. A long title is made smaller to fit the page.
 - **Cleaned copies**: what the cleaned copies are called. `{name}` stands for the original file’s name, so the default `{name}-clean` turns `Week 3.pdf` into `Week 3-clean.pdf`. Try `{name} (Brinn)` or `Brinn - {name}`. An example updates as you type, and a name Windows wouldn’t allow is pointed out straight away.
@@ -137,7 +173,7 @@ Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Rem
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the four theme preview cards, the Appearance choice, the title for page 1 and the name for cleaned copies">
+    <img src="docs/screenshots/settings-light.png" width="820" alt="The settings panel open on the right, showing the theme preview cards, the Appearance choice, the title for page 1 and the name for cleaned copies">
   </picture>
 </p>
 
@@ -150,7 +186,8 @@ Your choices are saved and restored next time, in `%APPDATA%\SenAI\Watermark Rem
 | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Remove watermarks |
 | <kbd>Delete</kbd> | Remove the selected files from the list |
 | <kbd>Ctrl</kbd>+<kbd>,</kbd> | Open Settings |
-| <kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>Ctrl</kbd>+<kbd>4</kbd> | Switch theme |
+| <kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>Ctrl</kbd>+<kbd>8</kbd> | Switch theme |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | Preview the words on page 1, before and after |
 | <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Exit |
 
 In **Apple Liquid Glass**, tap <kbd>Alt</kbd> to show the menu bar.
@@ -166,7 +203,7 @@ In **Apple Liquid Glass**, tap <kbd>Alt</kbd> to show the menu bar.
 | The **“SenAI Maths”** title becomes **Brinns autocompleter**, in the same place, size and style | Questions, answers and working |
 | The **senai.uk** footer on every page is removed | Diagrams and images |
 | Links to senai.uk and metadata that mentions SenAI are removed | Page numbers |
-| **Empty boxes** become the symbols SenAI lost: degree signs, multiplication dots and the ⇒ arrow | Maths that SenAI set correctly |
+| **Empty boxes** become the symbols SenAI lost: degree signs stay raised, multiplication dots and the ⇒ arrow. A wide arrow is made smaller so it fits the gap | Maths that SenAI set correctly, including stacked fractions |
 | **Sentences with no spaces** are set again with their spaces, in the page’s own font | Your original file, which is never changed |
 | The document title in your PDF viewer is the file’s name instead of “about:blank” | |
 
@@ -285,7 +322,7 @@ flowchart LR
 
 Only the text-drawing operators (`Tj`, `TJ`, `'` and `"`) that draw the branding are removed. Every other operator on the page is kept.
 
-Then the typesetting repairs. SenAI sets maths with the Liberation fonts, which lack some symbols, so Chrome drew glyph 0 (an empty box) instead. Every glyph on the page is located, with its font, size and position. A box is worked out from its surroundings: a small raised one after a number is a degree sign, one spaced like a binary operator is a dot, and one spaced like a relation is the implies arrow. Chrome’s own ActualText hint is used when it left one. The box is taken out without moving anything else on the line, and the symbol is drawn in its place in the same font family, from another font in the file, or from a standard PDF font. Sentences that lost their spaces are split back into words and set again in the page’s upright serif.
+Then the typesetting repairs. SenAI sets maths with the Liberation fonts, which lack some symbols, so Chrome drew glyph 0 (an empty box) instead. Every glyph on the page is located, with its font, size and position. A box is worked out from its surroundings: a small raised one after a number is a degree sign, one spaced like a binary operator is a dot, and one spaced like a relation is the implies arrow. Chrome’s own ActualText hint is used when it left one. The box is taken out without moving anything else on the line, and the symbol is drawn in its place in the same font family, from another font in the file, or from a standard PDF font. A degree sign stays in the raised box, at that box's size, so it doesn't drop onto the baseline or close up the space before a minus or an equals. An arrow that's wider than the gap between its neighbours is drawn smaller. Sentences that lost their spaces are split back into words and set again in the page’s upright serif. A raised number on that line, such as a power, is set again at the same height, including one that starts just past the last digit.
 
 ## Accessibility
 

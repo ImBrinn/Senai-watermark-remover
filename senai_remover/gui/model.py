@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import errno
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -39,6 +40,8 @@ class FileJob:
     message: str = ""
     detail: str = ""
     warnings: list[str] = field(default_factory=list)
+    # Repair kinds, such as "°" or "spaces". Not the student's text.
+    fixes: list[str] = field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -189,11 +192,13 @@ def run_job(job: FileJob, target: Path, title: str = DEFAULT_TITLE) -> None:
     except Exception as exc:  # shown on the file's row
         job.status = Status.FAILED
         job.removed = job.fixed = 0
+        job.fixes = []
         job.message, job.detail = friendly_error(exc, job.source, target)
         return
     job.output = target
     job.removed = len(result.removed)
     job.fixed = len(result.repaired)
+    job.fixes = [what for _, what in result.repaired]
     job.warnings = list(result.warnings)
     job.detail = "\n".join(result.warnings)
     job.status = Status.CLEANED if result.changed or result.repaired else Status.UNCHANGED
@@ -243,6 +248,39 @@ def friendly_error(exc: BaseException, source: Path, target: Path) -> tuple[str,
 
 def plural(count: int, word: str) -> str:
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+# Repair kinds, in the order a result line should name them. Arrows drawn as
+# ⟹ or ⇒ are the same fix.
+_FIX_WORDS = (
+    ("°", "degree sign", "degree signs"),
+    ("·", "multiplication dot", "multiplication dots"),
+    ("arrow", "arrow", "arrows"),
+    ("spaces", "sentence spaced", "sentences spaced"),
+)
+
+
+def changes_text(jobs: Iterable[FileJob]) -> str:
+    """What a run actually changed, without any of the student's writing.
+
+    "2 removed, 4 degree signs, 1 sentence spaced"
+    """
+    removed = 0
+    counts: Counter = Counter()
+    for job in jobs:
+        if job.status is not Status.CLEANED:
+            continue
+        removed += job.removed
+        for what in job.fixes:
+            counts["arrow" if what in ("⟹", "⇒") else what] += 1
+    parts = []
+    if removed:
+        parts.append(f"{removed} removed")
+    for key, one, many in _FIX_WORDS:
+        count = counts.get(key, 0)
+        if count:
+            parts.append(f"{count} {one if count == 1 else many}")
+    return ", ".join(parts)
 
 
 def _key(path: Path) -> str:

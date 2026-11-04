@@ -382,11 +382,11 @@ class Mark(QWidget):
         self.setToolTip(text)
         self.update()
 
-    def show_score(self, summary: RunSummary) -> None:
+    def show_score(self, summary: RunSummary, text: str = "") -> None:
         ok = summary.cleaned + summary.unchanged
         self.mode = "score"
         self.score = f"{ok}/{summary.total}"
-        self.text = summary.text()
+        self.text = text or summary.text()
         self.role = "success" if not summary.failed else "warning" if ok else "danger"
         self.setAccessibleName(f"{self.score}. {self.text}")
         self.setToolTip(self.text)
@@ -643,7 +643,7 @@ class ExerciseBookWindow(BaseWindow):
 
     def on_finished(self, summary: RunSummary) -> None:
         self._set_running(False)
-        self.mark.show_score(summary)
+        self.mark.show_score(summary, self.result_message(summary))
 
     def notify(self, text: str, kind: str = "info") -> None:
         role, name = {"success": ("success", "circle-check"), "warning": ("warning", "triangle-alert"),

@@ -7,7 +7,7 @@ Cleans SenAI Maths PDFs:
 - fixes SenAI's typesetting faults (empty boxes for missing symbols, and
   sentences set with no spaces).
 
-A Windows desktop app (Qt, four themes) plus a command line. Users are
+A Windows desktop app (Qt, eight themes) plus a command line. Users are
 students on Windows who run the single-file `.exe`; keep wording plain and
 friendly.
 

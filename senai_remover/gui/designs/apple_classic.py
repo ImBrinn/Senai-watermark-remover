@@ -129,6 +129,7 @@ def stylesheet(t: dict) -> str:
                                    outline: 0; selection-background-color: {t['accent']};
                                    selection-color: {t['on_accent']}; }}
     #well {{ background: {t['surface']}; border: 1px solid {t['border']}; border-radius: 10px; }}
+    #well[empty="true"] {{ border: 1.5px dashed {t['secondary']}; }}
     #well[drop="true"] {{ background: {t['accent_tint']}; border: 2px solid {t['accent']}; }}
     QListView {{ background: transparent; border: none; outline: 0; }}
     #emptyTitle {{ font-size: 17px; font-weight: 600; }}
@@ -295,6 +296,9 @@ class AppleClassicWindow(BaseWindow):
     def update_view(self) -> None:
         jobs = self.controller.jobs
         self.stack.setCurrentIndex(1 if jobs else 0)
+        self.well.setProperty("empty", "true" if not jobs else "false")
+        self.well.style().unpolish(self.well)
+        self.well.style().polish(self.well)
         running = self.controller.running
         self.progress.setVisible(running)
         summary = self.controller.last_summary
@@ -303,11 +307,12 @@ class AppleClassicWindow(BaseWindow):
         elif self._note[0]:
             text, kind = self._note
         elif summary is not None:
-            text = summary.text()
+            text = self.result_message(summary)
             kind = ("danger" if not summary.cleaned else "warning") if summary.failed else "success"
         else:
             text, kind = (plural(len(jobs), "PDF") if jobs else "No PDFs added"), ""
         self.status_text.setText(text)
+        self.status_text.setToolTip(text if summary is not None and not running else "")
         names = {"success": "circle-check", "danger": "circle-x", "warning": "triangle-alert", "info": "info"}
         if kind in names:
             role = {"info": "secondary"}.get(kind, kind)

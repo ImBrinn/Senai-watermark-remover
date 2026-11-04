@@ -3,6 +3,26 @@
 All notable changes to SenAI Watermark Remover are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-11-02
+
+### Fixed
+- Spacing a run-together sentence keeps a raised number on its digit. A power that starts just past the last character, which rounding often does, is still part of that line, so it isn't left behind when the words are set again.
+
+### Changed
+- Every theme shows a drop card while PDFs are dragged over the window. It fades in, and it stays still when Windows asks for less motion.
+- The result line names the fixes as well as the files: degree signs, multiplication dots, arrows and sentences spaced. Fluent's progress bar says "Cleaning 2 of 5" beside it.
+- Theme cards in Settings show their shortcut, Ctrl+1 to Ctrl+8. The choice is still saved.
+- **Preview page 1** (File menu, or Ctrl+Shift+P) draws the words on the first page before and after cleaning, each one where the PDF put it.
+
+## [2.3.0] - 2026-11-02
+
+### Fixed
+- **Degree signs stay superscripts.** A missing degree sign was redrawn full size on the digit baseline. It now stays in the small raised box Chrome drew, so 180° sits above the line, a fraction such as 180°/3 stays stacked, and the gap before a minus or an equals is left as it was. An arrow that would be wider than the gap around it is drawn smaller so it doesn't run into the neighbours.
+
+### Added
+- **Four more themes:** Midnight (warm paper and gold), Aurora (a violet-to-teal band), Mono (black, white and hairlines) and High Contrast (large type, thick focus). Ctrl+5 to Ctrl+8 switch to them. The original four are unchanged, and the choice is still saved.
+- Each of the new themes shows a written progress line ("Cleaning 2 of 5") and a result banner with an icon and words.
+
 ## [2.2.0] - 2026-10-22
 
 ### Added

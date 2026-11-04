@@ -12,9 +12,9 @@ from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu, QMessageBox, QToolButton
 
 from ..controller import Controller
-from ..model import RunSummary
+from ..model import RunSummary, changes_text
 from ..theme import Prefs, icon
-from ..widgets import FileListView, Labels, bind, icon_button
+from ..widgets import DropVeil, FileListView, Labels, bind, icon_button
 
 PDF_FILTER = "PDF files (*.pdf)"
 
@@ -94,6 +94,45 @@ class BaseWindow(QMainWindow):
     def set_drop_active(self, active: bool) -> None:
         """Highlight the window while PDFs are dragged over it."""
 
+    def result_message(self, summary: RunSummary) -> str:
+        """The result line, naming the fixes as well as how many files."""
+        line = summary.text()
+        extra = changes_text(self.controller.jobs)
+        if extra:
+            line = f"{line}. {extra}"
+        if line and not line.endswith("."):
+            line += "."
+        return line
+
+    def preview_page(self) -> None:
+        """Show the words on page 1 of a cleaned file, before and after."""
+        from ..preview import PagePreview
+
+        jobs = self.controller.jobs
+        selected = self.list_view.selected_rows() if self.list_view is not None else []
+        chosen = [jobs[r] for r in selected if r < len(jobs) and jobs[r].output]
+        job = chosen[0] if chosen else next((j for j in jobs if j.output), None)
+        if job is None or job.output is None:
+            return
+        PagePreview(self, job.source, job.output, job.name).exec()
+
+    def _drop_veil(self) -> DropVeil:
+        veil = getattr(self, "_veil", None)
+        host = self.centralWidget()
+        if veil is None or veil.parentWidget() is not host:
+            veil = DropVeil(self)
+            self._veil = veil
+        return veil
+
+    def _show_drop_veil(self, active: bool) -> None:
+        if self.centralWidget() is None:
+            return
+        veil = self._drop_veil()
+        if active:
+            veil.present()
+        else:
+            veil.dismiss()
+
     def tooltip_style(self) -> str:
         """Tooltips are separate windows, styled from the application."""
         t = self.t
@@ -122,6 +161,8 @@ class BaseWindow(QMainWindow):
         self.act_run = action(L.run, self.controller.run, ["Ctrl+Return", "Ctrl+Enter"])
         self.act_show = action(L.show, lambda: self.controller.show_outputs(self.list_view.selected_rows()))
         self.act_open_pdf = action(L.open_pdf, self._open_selected)
+        self.act_preview = action("Preview page 1", self.preview_page, ["Ctrl+Shift+P"],
+                                  "Text on page 1, before and after")
         self.act_settings = action(L.settings, self.open_settings, ["Ctrl+,"], "Settings")
         self.act_exit = action(L.exit, self.close, ["Ctrl+Q"])
         self.act_about = action(L.about, self._about)
@@ -143,7 +184,7 @@ class BaseWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_run)
         file_menu.addSeparator()
-        file_menu.addActions([self.act_open_pdf, self.act_show])
+        file_menu.addActions([self.act_open_pdf, self.act_preview, self.act_show])
         file_menu.addSeparator()
         file_menu.addAction(self.act_settings)
         file_menu.addSeparator()
@@ -162,6 +203,7 @@ class BaseWindow(QMainWindow):
         """The Theme submenu and Settings, for designs with a More menu."""
         themes = menu.addMenu("Theme")
         themes.addActions(self.act_designs)
+        menu.addAction(self.act_preview)
         menu.addAction(self.act_settings)
 
     def settings_button(self, color: str, size: int = 28) -> "QToolButton":
@@ -197,6 +239,7 @@ class BaseWindow(QMainWindow):
         self.act_run.setEnabled(not running and has_jobs)
         self.act_show.setEnabled(not running and has_outputs)
         self.act_open_pdf.setEnabled(not running and selected_output)
+        self.act_preview.setEnabled(not running and has_outputs)
         for act in self.act_designs:
             act.setEnabled(not running)
         self.update_view()
@@ -247,6 +290,7 @@ class BaseWindow(QMainWindow):
         if not self.controller.running and self._dropped_paths(event.mimeData()):
             event.acceptProposedAction()
             self.set_drop_active(True)
+            self._show_drop_veil(True)
         else:
             event.ignore()
 
@@ -258,9 +302,11 @@ class BaseWindow(QMainWindow):
 
     def dragLeaveEvent(self, event) -> None:
         self.set_drop_active(False)
+        self._show_drop_veil(False)
 
     def dropEvent(self, event) -> None:
         self.set_drop_active(False)
+        self._show_drop_veil(False)
         paths = self._dropped_paths(event.mimeData())
         if paths and not self.controller.running:
             event.acceptProposedAction()
@@ -291,6 +337,13 @@ class BaseWindow(QMainWindow):
             "originals are never changed.\n\n"
             "Fonts: Inter (SIL Open Font License). Icons: Lucide (ISC License).",
         )
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        veil = getattr(self, "_veil", None)
+        host = self.centralWidget()
+        if veil is not None and veil.isVisible() and host is not None:
+            veil.setGeometry(host.rect())
 
     def closeEvent(self, event) -> None:
         self.controller.wait()
